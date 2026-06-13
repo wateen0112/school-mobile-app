@@ -398,6 +398,9 @@ class SchoolRepository {
   }
 
   dynamic _coerceValue(String key, dynamic value) {
+    if (value is List) {
+      return value.map((item) => _coerceValue(key, item)).toList();
+    }
     if (value is String) {
       final numericKeys = {
         'id',

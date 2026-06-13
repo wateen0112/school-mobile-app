@@ -1838,7 +1838,7 @@ String _localizedWizardTitle(BuildContext context, String title) {
   };
 }
 
-class BulkActionContent extends StatelessWidget {
+class BulkActionContent extends StatefulWidget {
   const BulkActionContent({
     super.key,
     required this.module,
@@ -1849,22 +1849,67 @@ class BulkActionContent extends StatelessWidget {
   final String action;
 
   @override
+  State<BulkActionContent> createState() => _BulkActionContentState();
+}
+
+class _BulkActionContentState extends State<BulkActionContent> {
+  Map<String, List<FormOption>> _fieldOptions = const {};
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOptions();
+  }
+
+  Future<void> _loadOptions() async {
+    final viewModel = context.read<ModuleViewModel>();
+    try {
+      final options = await viewModel.formOptions(context);
+      if (mounted) {
+        setState(() {
+          _fieldOptions = options;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = ApiService.failureFrom(e).message;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(_error!, style: const TextStyle(color: AppTheme.coral)),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.all(2),
       child: DynamicModuleForm(
-        module: module,
-        submitLabel: action,
-        onSubmit: (_) async {
+        module: widget.module,
+        fieldOptions: _fieldOptions,
+        submitLabel: widget.action,
+        onSubmit: (values) async {
           final ok = await showConfirmationDialog(
             context,
-            title: action,
+            title: widget.action,
             message: appIsArabic(context)
                 ? 'يرجى تأكيد هذه العملية الجماعية.'
                 : 'Please confirm this bulk operation.',
           );
           if (ok && context.mounted) {
-            await context.read<ModuleViewModel>().create(const {});
+            await context.read<ModuleViewModel>().create(values);
           }
         },
       ),

@@ -28,7 +28,7 @@ class DynamicModuleForm extends StatefulWidget {
 class _DynamicModuleFormState extends State<DynamicModuleForm> {
   final _formKey = GlobalKey<FormState>();
   final _controllers = <String, TextEditingController>{};
-  final _selectValues = <String, String?>{};
+  final _selectValues = <String, dynamic>{};
   bool _submitting = false;
 
   @override
@@ -36,11 +36,18 @@ class _DynamicModuleFormState extends State<DynamicModuleForm> {
     super.initState();
     for (final field in widget.module.fields) {
       final initial = _initialValue(field);
-      if (field.kind == FieldKind.select ||
-          field.kind == FieldKind.multiSelect) {
+      if (field.kind == FieldKind.select) {
         final options = _optionsFor(field);
         _selectValues[field.name] =
             options.any((option) => option.value == initial) ? initial : null;
+      } else if (field.kind == FieldKind.multiSelect) {
+        final options = _optionsFor(field);
+        final initialList = _initialList(field);
+        _selectValues[field.name] = initialList
+            .where(
+              (value) => options.any((option) => option.value == value),
+            )
+            .toList();
       } else {
         _controllers[field.name] = TextEditingController(text: initial ?? '');
       }
@@ -71,7 +78,7 @@ class _DynamicModuleFormState extends State<DynamicModuleForm> {
                   options: _optionsFor(field),
                   controller: _controllers[field.name],
                   value: _selectValues[field.name],
-                  onSelected: (value) =>
+                  onChanged: (value) =>
                       setState(() => _selectValues[field.name] = value),
                 ),
                 const SizedBox(height: 12),
@@ -110,7 +117,10 @@ class _DynamicModuleFormState extends State<DynamicModuleForm> {
       for (final entry in _controllers.entries)
         entry.key: entry.value.text.trim(),
       for (final entry in _selectValues.entries)
-        if (entry.value != null) entry.key: entry.value,
+        if (entry.value is List
+            ? (entry.value as List).isNotEmpty
+            : entry.value != null)
+          entry.key: entry.value,
     };
   }
 
@@ -144,12 +154,29 @@ class _DynamicModuleFormState extends State<DynamicModuleForm> {
     for (final key in candidates) {
       final value = raw[key];
       if (value == null) continue;
+      if (value is List) {
+        return value.isEmpty ? null : '${value.first}';
+      }
       if (value is Map) {
         return '${value['en'] ?? value['ar'] ?? (value.values.isEmpty ? '' : value.values.first)}';
       }
       return '$value';
     }
     return null;
+  }
+
+  List<String> _initialList(FormFieldSpec field) {
+    final raw = widget.initialValues;
+    if (raw == null) return [];
+    final value = raw[field.name];
+    if (value is List) {
+      return value
+          .map((item) => '$item')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+    if (value != null) return ['$value'];
+    return [];
   }
 
   List<FormOption> _optionsFor(FormFieldSpec field) {
@@ -168,18 +195,18 @@ class _FieldInput extends StatelessWidget {
     required this.options,
     required this.controller,
     required this.value,
-    required this.onSelected,
+    required this.onChanged,
   });
 
   final FormFieldSpec field;
   final List<FormOption> options;
   final TextEditingController? controller;
-  final String? value;
-  final ValueChanged<String?> onSelected;
+  final dynamic value;
+  final ValueChanged<dynamic> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    if (field.kind == FieldKind.select || field.kind == FieldKind.multiSelect) {
+    if (field.kind == FieldKind.select) {
       final hasDynamicOptions = field.dynamicOptionsKey != null;
       return DropdownButtonFormField<String>(
         decoration: InputDecoration(
@@ -198,8 +225,8 @@ class _FieldInput extends StatelessWidget {
               ),
             )
             .toList(),
-        initialValue: value,
-        onChanged: onSelected,
+        initialValue: value is String ? value as String : null,
+        onChanged: (selected) => onChanged(selected),
         validator: field.required
             ? (value) => value == null
                   ? appIsArabic(context)
@@ -207,6 +234,46 @@ class _FieldInput extends StatelessWidget {
                         : '${field.label} is required'
                   : null
             : null,
+      );
+    }
+    if (field.kind == FieldKind.multiSelect) {
+      final hasDynamicOptions = field.dynamicOptionsKey != null;
+      final selected = value is List<String> ? value as List<String> : <String>[];
+      final errorText = field.required && selected.isEmpty
+          ? (appIsArabic(context)
+                ? '${localizedFieldLabel(context, field)} مطلوب'
+                : '${field.label} is required')
+          : null;
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: localizedFieldLabel(context, field),
+          helperText: hasDynamicOptions && options.isEmpty
+              ? (appIsArabic(context)
+                    ? 'تعذر تحميل الخيارات، تحقق من الاتصال أو الـ API'
+                    : 'Options could not be loaded. Check connection or API.')
+              : null,
+          errorText: errorText,
+        ),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final option in options)
+              FilterChip(
+                label: Text(localizedOptionLabel(context, option.label)),
+                selected: selected.contains(option.value),
+                onSelected: (isSelected) {
+                  final updated = List<String>.from(selected);
+                  if (isSelected) {
+                    updated.add(option.value);
+                  } else {
+                    updated.remove(option.value);
+                  }
+                  onChanged(updated);
+                },
+              ),
+          ],
+        ),
       );
     }
     if (field.kind == FieldKind.date) {
@@ -235,7 +302,7 @@ class _FieldInput extends StatelessWidget {
         validator: field.required
             ? (value) => value == null || value.trim().isEmpty
                   ? appIsArabic(context)
-                        ? '${localizedFieldLabel(context, field)} Ù…Ø·Ù„ÙˆØ¨'
+                        ? '${localizedFieldLabel(context, field)} مطلوب'
                         : '${field.label} is required'
                   : null
             : null,
