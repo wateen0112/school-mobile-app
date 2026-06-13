@@ -458,11 +458,27 @@ class SchoolRepository {
         'email',
       ],
       if (lower.contains('email')) ...['email', 'Email'],
-      if (lower.contains('grade') || lower.contains('from')) ...[
+      if (lower == 'from' || lower.contains('from')) ...[
+        'f_grade',
+        'f_classroom',
+        'f_section',
+        'from_grade',
+        'from_Classroom',
+        'from_section',
+      ],
+      if (lower == 'to' || lower.contains('to')) ...[
+        't_grade',
+        't_classroom',
+        't_section',
+        'to_grade',
+        'to_Classroom',
+        'to_section',
+      ],
+      if (lower.contains('grade')) ...[
         'Grades',
         'grade',
         'Grade_id',
-        'from_grade',
+        'Grade_id_new',
       ],
       if (lower.contains('class')) ...[
         'My_classs',
@@ -475,7 +491,10 @@ class SchoolRepository {
         'Classroom_id',
         'classroom_id',
       ],
-      if (lower.contains('section')) ...['section', 'section_id'],
+      if (lower.contains('section')) ...[
+        'section',
+        'section_id',
+      ],
       if (lower.contains('phone')) ...['Phone_Father', 'phone'],
       if (lower.contains('children')) ...['students'],
       if (lower.contains('teacher') || lower.contains('subject')) ...[
