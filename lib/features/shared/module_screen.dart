@@ -1912,8 +1912,18 @@ class _BulkActionContentState extends State<BulkActionContent> {
                 ? 'يرجى تأكيد هذه العملية الجماعية.'
                 : 'Please confirm this bulk operation.',
           );
-          if (ok && context.mounted) {
+          if (!ok || !context.mounted) return;
+          try {
             await context.read<ModuleViewModel>().create(values);
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(t(context, 'savedSuccessfully'))),
+            );
+          } catch (error) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(error.toString())));
           }
         },
       ),

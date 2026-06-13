@@ -278,6 +278,7 @@ final moduleApiConfigs = <String, ModuleApiConfig>{
   'promotions': ModuleApiConfig(
     endpoint: '/promotion',
     fieldMap: {
+      'students': 'student_id',
       'fromGrade': 'Grade_id',
       'fromClassroom': 'Classroom_id',
       'fromSection': 'section_id',

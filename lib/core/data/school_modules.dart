@@ -181,6 +181,13 @@ const adminModules = <ModuleSpec>[
     columns: ['Student', 'From', 'To', 'Year'],
     fields: [
       FormFieldSpec(
+        name: 'students',
+        label: 'Students',
+        kind: FieldKind.multiSelect,
+        required: true,
+        dynamicOptionsKey: 'students',
+      ),
+      FormFieldSpec(
         name: 'fromGrade',
         label: 'From grade',
         kind: FieldKind.select,
