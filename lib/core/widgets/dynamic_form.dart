@@ -239,41 +239,12 @@ class _FieldInput extends StatelessWidget {
     if (field.kind == FieldKind.multiSelect) {
       final hasDynamicOptions = field.dynamicOptionsKey != null;
       final selected = value is List<String> ? value as List<String> : <String>[];
-      final errorText = field.required && selected.isEmpty
-          ? (appIsArabic(context)
-                ? '${localizedFieldLabel(context, field)} مطلوب'
-                : '${field.label} is required')
-          : null;
-      return InputDecorator(
-        decoration: InputDecoration(
-          labelText: localizedFieldLabel(context, field),
-          helperText: hasDynamicOptions && options.isEmpty
-              ? (appIsArabic(context)
-                    ? 'تعذر تحميل الخيارات، تحقق من الاتصال أو الـ API'
-                    : 'Options could not be loaded. Check connection or API.')
-              : null,
-          errorText: errorText,
-        ),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final option in options)
-              FilterChip(
-                label: Text(localizedOptionLabel(context, option.label)),
-                selected: selected.contains(option.value),
-                onSelected: (isSelected) {
-                  final updated = List<String>.from(selected);
-                  if (isSelected) {
-                    updated.add(option.value);
-                  } else {
-                    updated.remove(option.value);
-                  }
-                  onChanged(updated);
-                },
-              ),
-          ],
-        ),
+      return _MultiSelectDropdown(
+        field: field,
+        options: options,
+        selectedValues: selected,
+        hasDynamicOptions: hasDynamicOptions,
+        onChanged: onChanged,
       );
     }
     if (field.kind == FieldKind.date) {
@@ -337,5 +308,135 @@ class _FieldInput extends StatelessWidget {
   String _formatDate(DateTime date) {
     String two(int value) => value.toString().padLeft(2, '0');
     return '${date.year}-${two(date.month)}-${two(date.day)}';
+  }
+}
+
+class _MultiSelectDropdown extends StatelessWidget {
+  const _MultiSelectDropdown({
+    required this.field,
+    required this.options,
+    required this.selectedValues,
+    required this.hasDynamicOptions,
+    required this.onChanged,
+  });
+
+  final FormFieldSpec field;
+  final List<FormOption> options;
+  final List<String> selectedValues;
+  final bool hasDynamicOptions;
+  final ValueChanged<dynamic> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final isArabic = appIsArabic(context);
+    final helperText = hasDynamicOptions && options.isEmpty
+        ? (isArabic
+              ? 'تعذر تحميل الخيارات، تحقق من الاتصال أو الـ API'
+              : 'Options could not be loaded. Check connection or API.')
+        : null;
+    final errorText = field.required && selectedValues.isEmpty
+        ? (isArabic
+              ? '${localizedFieldLabel(context, field)} مطلوب'
+              : '${field.label} is required')
+        : null;
+    final hint = isArabic ? 'اختر...' : 'Select...';
+
+    String labelFor(String value) {
+      final option = options.firstWhere(
+        (option) => option.value == value,
+        orElse: () => FormOption(value: value, label: value),
+      );
+      return option.label;
+    }
+
+    return InkWell(
+      onTap: options.isEmpty
+          ? null
+          : () async {
+              final updated = await showDialog<List<String>>(
+                context: context,
+                builder: (context) {
+                  final tempSelected = List<String>.from(selectedValues);
+                  return AlertDialog(
+                    title: Text(localizedFieldLabel(context, field)),
+                    content: SizedBox(
+                      width: double.maxFinite,
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        itemBuilder: (context, index) {
+                          final option = options[index];
+                          return StatefulBuilder(
+                            builder: (context, setDialogState) {
+                              return CheckboxListTile(
+                                title: Text(
+                                  localizedOptionLabel(
+                                    context,
+                                    option.label,
+                                  ),
+                                ),
+                                value: tempSelected.contains(option.value),
+                                onChanged: (checked) {
+                                  setDialogState(() {
+                                    if (checked == true) {
+                                      tempSelected.add(option.value);
+                                    } else {
+                                      tempSelected.remove(option.value);
+                                    }
+                                  });
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(isArabic ? 'إلغاء' : 'Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, tempSelected),
+                        child: Text(isArabic ? 'تأكيد' : 'OK'),
+                      ),
+                    ],
+                  );
+                },
+              );
+              if (updated != null) {
+                onChanged(updated);
+              }
+            },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: localizedFieldLabel(context, field),
+          helperText: helperText,
+          errorText: errorText,
+          suffixIcon: const Icon(Icons.arrow_drop_down),
+        ),
+        child: selectedValues.isEmpty
+            ? Text(
+                hint,
+                style: TextStyle(
+                  color: Theme.of(context).hintColor,
+                ),
+              )
+            : Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final value in selectedValues)
+                    Chip(
+                      label: Text(
+                        localizedOptionLabel(context, labelFor(value)),
+                      ),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: EdgeInsets.zero,
+                    ),
+                ],
+              ),
+      ),
+    );
   }
 }
