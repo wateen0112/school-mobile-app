@@ -1856,11 +1856,15 @@ class _BulkActionContentState extends State<BulkActionContent> {
   Map<String, List<FormOption>> _fieldOptions = const {};
   bool _loading = true;
   String? _error;
+  bool _optionsLoaded = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadOptions();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_optionsLoaded) {
+      _optionsLoaded = true;
+      _loadOptions();
+    }
   }
 
   Future<void> _loadOptions() async {
