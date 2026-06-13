@@ -1,3 +1,4 @@
+import 'package:chucker_flutter/chucker_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -29,6 +30,7 @@ class ApiService {
           },
         ),
       ) {
+    dio.interceptors.add(ChuckerDioInterceptor());
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {

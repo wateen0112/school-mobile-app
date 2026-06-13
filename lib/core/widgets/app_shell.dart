@@ -1,3 +1,4 @@
+import 'package:chucker_flutter/chucker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -71,6 +72,9 @@ class AppShell extends StatelessWidget {
                     if (value == 'profile') {
                       context.go('/${session.currentRole.name}/profile');
                     }
+                    if (value == 'apiInspector') {
+                      ChuckerFlutter.showChuckerScreen();
+                    }
                     if (value == 'logout') {
                       session.logout().then((_) {
                         if (context.mounted) context.go('/roles');
@@ -81,6 +85,10 @@ class AppShell extends StatelessWidget {
                     PopupMenuItem(
                       value: 'profile',
                       child: Text(t(context, 'profile')),
+                    ),
+                    PopupMenuItem(
+                      value: 'apiInspector',
+                      child: Text(t(context, 'apiInspector')),
                     ),
                     PopupMenuItem(
                       value: 'logout',

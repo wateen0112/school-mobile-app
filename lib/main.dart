@@ -1,3 +1,4 @@
+import 'package:chucker_flutter/chucker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
@@ -34,7 +35,7 @@ class _SchoolMobileAppState extends State<SchoolMobileApp> {
   void initState() {
     super.initState();
     _session = SessionController(widget.prefs);
-    _router = createRouter(_session);
+    _router = createRouter(_session, navigatorKey: ChuckerFlutter.navigatorKey);
     _lastAuthenticated = _session.isAuthenticated;
     _lastRole = _session.currentRole;
     _session.addListener(_onSessionChanged);

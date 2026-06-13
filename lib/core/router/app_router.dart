@@ -13,7 +13,10 @@ import '../theme/app_theme.dart';
 import '../widgets/app_shell.dart';
 import '../../widgets/shared_widgets.dart';
 
-GoRouter createRouter(SessionController session) {
+GoRouter createRouter(
+  SessionController session, {
+  GlobalKey<NavigatorState>? navigatorKey,
+}) {
   final guard = AuthGuard(session);
   final allModules = [
     ...adminModules,
@@ -30,6 +33,7 @@ GoRouter createRouter(SessionController session) {
       .toList();
 
   return GoRouter(
+    navigatorKey: navigatorKey,
     refreshListenable: session.routerRefresh,
     initialLocation: session.isAuthenticated ? session.homeRoute : '/roles',
     redirect: (context, state) => guard.redirect(state),
