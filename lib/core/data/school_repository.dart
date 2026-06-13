@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../models/app_models.dart';
 import '../network/api_service.dart';
 import 'module_api_registry.dart';
@@ -100,6 +102,9 @@ class SchoolRepository {
     final config = apiConfigFor(module);
     if (config == null) return;
     final payload = _payloadFor(config, values);
+    debugPrint(
+      '[SchoolRepository] POST ${config.createEndpoint ?? config.endpoint}\npayload: ${jsonEncode(payload)}',
+    );
     try {
       await _api.post(config.createEndpoint ?? config.endpoint, data: payload);
     } catch (error) {
