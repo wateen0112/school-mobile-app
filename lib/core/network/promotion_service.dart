@@ -1,81 +1,91 @@
 import 'api_service.dart';
 
 /// Service for Student Promotion API operations.
-/// Connects to Laravel backend promotion endpoints.
+/// Connects to the existing Laravel backend promotion endpoints.
 class PromotionService {
   PromotionService(this._api);
 
   final ApiService _api;
 
-  /// Get eligible students for promotion from a specific classroom.
+  /// Get eligible students for promotion from a specific grade/classroom/section.
   Future<List<dynamic>> getEligibleStudents({
-    required int fromClassId,
-    required String academicYear,
+    required String gradeId,
+    required String classroomId,
+    required String sectionId,
   }) async {
     final body = await _api.get(
-      '/promotions/eligible',
+      '/promotion/students-for-promotion',
       query: {
-        'from_class_id': '$fromClassId',
-        'academic_year': academicYear,
+        'grade_id': gradeId,
+        'classroom_id': classroomId,
+        'section_id': sectionId,
       },
     );
     return body['data'] as List<dynamic>? ?? [];
   }
 
-  /// Promote a single student.
-  Future<Map<String, dynamic>> promoteStudent({
-    required int studentId,
-    required int fromClassId,
-    required int toClassId,
-    required int toGradeId,
-    required int toSectionId,
-    required String academicYear,
-    required String decision,
-    String? notes,
-  }) async {
-    return _api.post('/promotions/single', data: {
-      'student_id': studentId,
-      'from_class_id': fromClassId,
-      'to_class_id': toClassId,
-      'to_grade_id': toGradeId,
-      'to_section_id': toSectionId,
-      'academic_year': academicYear,
-      'decision': decision,
-      if (notes != null) 'notes': notes,
-    });
-  }
-
-  /// Bulk promote multiple students.
+  /// Bulk promote selected students.
+  /// Maps Flutter form field names to Laravel API field names.
   Future<Map<String, dynamic>> bulkPromote({
-    required List<int> studentIds,
-    required int fromClassId,
-    required int toClassId,
-    required int toGradeId,
-    required int toSectionId,
+    required List<String> studentIds,
+    required String fromGradeId,
+    required String fromClassroomId,
+    required String fromSectionId,
+    required String toGradeId,
+    required String toClassroomId,
+    required String toSectionId,
     required String academicYear,
-    required String decision,
+    required String academicYearNew,
   }) async {
-    return _api.post('/promotions/bulk', data: {
-      'student_ids': studentIds,
-      'from_class_id': fromClassId,
-      'to_class_id': toClassId,
-      'to_grade_id': toGradeId,
-      'to_section_id': toSectionId,
+    return _api.post('/promotion/bulk', data: {
+      'student_ids': studentIds.map(int.parse).toList(),
+      'Grade_id': int.parse(fromGradeId),
+      'Classroom_id': int.parse(fromClassroomId),
+      'section_id': int.parse(fromSectionId),
+      'Grade_id_new': int.parse(toGradeId),
+      'Classroom_id_new': int.parse(toClassroomId),
+      'section_id_new': int.parse(toSectionId),
       'academic_year': academicYear,
-      'decision': decision,
+      'academic_year_new': academicYearNew,
     });
   }
 
-  /// Get promotion statistics.
-  Future<Map<String, dynamic>> getStatistics(String academicYear) async {
-    final body = await _api.get('/promotions/statistics', query: {
+  /// Promote ALL students in a grade/classroom/section (existing Laravel endpoint).
+  Future<Map<String, dynamic>> promoteAll({
+    required String fromGradeId,
+    required String fromClassroomId,
+    required String fromSectionId,
+    required String toGradeId,
+    required String toClassroomId,
+    required String toSectionId,
+    required String academicYear,
+    required String academicYearNew,
+  }) async {
+    return _api.post('/Promotion', data: {
+      'Grade_id': int.parse(fromGradeId),
+      'Classroom_id': int.parse(fromClassroomId),
+      'section_id': int.parse(fromSectionId),
+      'Grade_id_new': int.parse(toGradeId),
+      'Classroom_id_new': int.parse(toClassroomId),
+      'section_id_new': int.parse(toSectionId),
       'academic_year': academicYear,
+      'academic_year_new': academicYearNew,
     });
-    return body['data'] as Map<String, dynamic>? ?? {};
   }
 
-  /// Reverse a promotion.
-  Future<void> reversePromotion(int promotionId) async {
-    await _api.delete('/promotions/$promotionId/reverse');
+  /// List all promotions.
+  Future<List<dynamic>> listPromotions() async {
+    final body = await _api.get('/Promotion');
+    return body['data'] as List<dynamic>? ?? [];
+  }
+
+  /// Revert a single promotion.
+  Future<void> revertPromotion(int promotionId) async {
+    await _api.delete('/Promotion/$promotionId');
+  }
+
+  /// Revert ALL promotions.
+  Future<void> revertAllPromotions() async {
+    await _api.delete('/Promotion/1', query: {'page_id': '1'});
   }
 }

@@ -1986,6 +1986,7 @@ class _PromotionBulkFormState extends State<_PromotionBulkForm> {
     BuildContext context,
     Map<String, dynamic> values,
   ) async {
+    // Extract selected student IDs
     final studentsRaw = values['students'];
     final List<String> studentIds = [];
     if (studentsRaw is List) {
@@ -1995,32 +1996,31 @@ class _PromotionBulkFormState extends State<_PromotionBulkForm> {
     }
 
     if (studentIds.isEmpty) {
-      setState(() => _error = appIsArabic(context)
-          ? 'Please select at least one student.'
-          : 'Please select at least one student.');
+      setState(() => _error = 'Please select at least one student.');
       return;
     }
 
-    final fromClassId = int.tryParse('${values['fromClassroom'] ?? ''}');
-    final toGradeId = int.tryParse('${values['toGrade'] ?? ''}');
-    final toClassId = int.tryParse('${values['toClassroom'] ?? ''}');
-    final toSectionId = int.tryParse('${values['toSection'] ?? ''}');
-    final academicYear = '${values['academicYearNew'] ?? ''}';
+    // Extract all form values
+    final fromGrade = '${values['fromGrade'] ?? ''}';
+    final fromClassroom = '${values['fromClassroom'] ?? ''}';
+    final fromSection = '${values['fromSection'] ?? ''}';
+    final toGrade = '${values['toGrade'] ?? ''}';
+    final toClassroom = '${values['toClassroom'] ?? ''}';
+    final toSection = '${values['toSection'] ?? ''}';
+    final academicYear = '${values['academicYear'] ?? ''}';
+    final academicYearNew = '${values['academicYearNew'] ?? ''}';
 
-    if (fromClassId == null || toGradeId == null || toClassId == null ||
-        toSectionId == null || academicYear.isEmpty) {
-      setState(() => _error = appIsArabic(context)
-          ? 'Please fill all required fields.'
-          : 'Please fill all required fields.');
+    if (fromGrade.isEmpty || fromClassroom.isEmpty || fromSection.isEmpty ||
+        toGrade.isEmpty || toClassroom.isEmpty || toSection.isEmpty ||
+        academicYear.isEmpty || academicYearNew.isEmpty) {
+      setState(() => _error = 'Please fill all required fields.');
       return;
     }
 
     final ok = await showConfirmationDialog(
       context,
       title: widget.action,
-      message: appIsArabic(context)
-          ? 'Promote ${studentIds.length} students?'
-          : 'Promote ${studentIds.length} students?',
+      message: 'Promote ${studentIds.length} students?',
     );
     if (!ok || !context.mounted) return;
 
@@ -2034,13 +2034,15 @@ class _PromotionBulkFormState extends State<_PromotionBulkForm> {
       final service = PromotionService(api);
 
       final result = await service.bulkPromote(
-        studentIds: studentIds.map(int.parse).toList(),
-        fromClassId: fromClassId,
-        toClassId: toClassId,
-        toGradeId: toGradeId,
-        toSectionId: toSectionId,
+        studentIds: studentIds,
+        fromGradeId: fromGrade,
+        fromClassroomId: fromClassroom,
+        fromSectionId: fromSection,
+        toGradeId: toGrade,
+        toClassroomId: toClassroom,
+        toSectionId: toSection,
         academicYear: academicYear,
-        decision: 'promoted',
+        academicYearNew: academicYearNew,
       );
 
       if (!context.mounted) return;
