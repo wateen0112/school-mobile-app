@@ -123,7 +123,7 @@ class PromotionService {
         academicYearNew: academicYearNew,
       );
     }
-    return _api.post('/Promotion', data: {
+    return _api.post('/promotion', data: {
       'Grade_id': int.parse(fromGradeId),
       'Classroom_id': int.parse(fromClassroomId),
       'section_id': int.parse(fromSectionId),
@@ -151,7 +151,7 @@ class PromotionService {
       _mockPromotions.removeWhere((p) => p['id'] == promotionId);
       return;
     }
-    await _api.delete('/Promotion/$promotionId');
+    await _api.delete('/promotion/$promotionId');
   }
 
   /// Revert ALL promotions.
@@ -160,6 +160,6 @@ class PromotionService {
       _mockPromotions.clear();
       return;
     }
-    await _api.delete('/Promotion/1', data: {'page_id': '1'});
+    await _api.delete('/promotion/1', data: {'page_id': '1'});
   }
 }
