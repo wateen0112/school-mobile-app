@@ -13,9 +13,9 @@ class AuthStorage {
   static const _roleKey = 'auth.role';
   static const _baseUrlKey = 'api.base_url';
 
-  static const defaultBaseUrl = String.fromEnvironment(
+  static final defaultBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: ApiConfig.defaultBaseUrl,
+    defaultValue: 'http://10.0.2.2:8000/api',
   );
 
   final SharedPreferences _prefs;
