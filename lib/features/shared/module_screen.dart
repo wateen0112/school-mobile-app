@@ -9,6 +9,7 @@ import '../../core/localization/module_localization.dart';
 import '../../core/data/school_repository.dart';
 import '../../core/models/app_models.dart';
 import '../../core/network/api_service.dart';
+import '../../core/network/promotion_service.dart';
 import '../../core/state/session_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/confirmation_dialog.dart';
@@ -1941,34 +1942,169 @@ class _BulkActionContentState extends State<BulkActionContent> {
     }
     return Padding(
       padding: const EdgeInsets.all(2),
-      child: DynamicModuleForm(
-        module: widget.module,
-        fieldOptions: _fieldOptions,
-        submitLabel: widget.action,
-        onSubmit: (values) async {
-          final ok = await showConfirmationDialog(
-            context,
-            title: widget.action,
-            message: appIsArabic(context)
-                ? 'يرجى تأكيد هذه العملية الجماعية.'
-                : 'Please confirm this bulk operation.',
-          );
-          if (!ok || !context.mounted) return;
-          try {
-            await context.read<ModuleViewModel>().create(values);
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(t(context, 'savedSuccessfully'))),
-            );
-          } catch (error) {
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(error.toString())));
-          }
-        },
-      ),
+      child: widget.module.key == 'promotions'
+          ? _PromotionBulkForm(
+              module: widget.module,
+              fieldOptions: _fieldOptions,
+              action: widget.action,
+            )
+          : DynamicModuleForm(
+              module: widget.module,
+              fieldOptions: _fieldOptions,
+              submitLabel: widget.action,
+              onSubmit: (values) async {
+                final ok = await showConfirmationDialog(
+                  context,
+                  title: widget.action,
+                  message: appIsArabic(context)
+                      ? 'يرجى تأكيد هذه العملية الجماعية.'
+                      : 'Please confirm this bulk operation.',
+                );
+                if (!ok || !context.mounted) return;
+                try {
+                  await context.read<ModuleViewModel>().create(values);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(t(context, 'savedSuccessfully'))),
+                  );
+                } catch (error) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(error.toString())));
+                }
+              },
+            ),
     );
+  }
+}
+
+class _PromotionBulkForm extends StatefulWidget {
+  const _PromotionBulkForm({
+    required this.module,
+    required this.fieldOptions,
+    required this.action,
+  });
+
+  final ModuleSpec module;
+  final Map<String, List<FormOption>> fieldOptions;
+  final String action;
+
+  @override
+  State<_PromotionBulkForm> createState() => _PromotionBulkFormState();
+}
+
+class _PromotionBulkFormState extends State<_PromotionBulkForm> {
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DynamicModuleForm(
+          module: widget.module,
+          fieldOptions: widget.fieldOptions,
+          submitLabel: widget.action,
+          onSubmit: (values) => _executePromotion(context, values),
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(_error!, style: const TextStyle(color: AppTheme.coral)),
+          ),
+        if (_submitting)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _executePromotion(
+    BuildContext context,
+    Map<String, dynamic> values,
+  ) async {
+    // Extract selected student IDs
+    final studentsRaw = values['students'];
+    final List<String> studentIds = [];
+    if (studentsRaw is List) {
+      studentIds.addAll(studentsRaw.whereType<String>());
+    } else if (studentsRaw is String && studentsRaw.isNotEmpty) {
+      studentIds.add(studentsRaw);
+    }
+
+    if (studentIds.isEmpty) {
+      setState(() => _error = 'Please select at least one student.');
+      return;
+    }
+
+    // Extract all form values
+    final fromGrade = '${values['fromGrade'] ?? ''}';
+    final fromClassroom = '${values['fromClassroom'] ?? ''}';
+    final fromSection = '${values['fromSection'] ?? ''}';
+    final toGrade = '${values['toGrade'] ?? ''}';
+    final toClassroom = '${values['toClassroom'] ?? ''}';
+    final toSection = '${values['toSection'] ?? ''}';
+    final academicYear = '${values['academicYear'] ?? ''}';
+    final academicYearNew = '${values['academicYearNew'] ?? ''}';
+
+    if (fromGrade.isEmpty || fromClassroom.isEmpty || fromSection.isEmpty ||
+        toGrade.isEmpty || toClassroom.isEmpty || toSection.isEmpty ||
+        academicYear.isEmpty || academicYearNew.isEmpty) {
+      setState(() => _error = 'Please fill all required fields.');
+      return;
+    }
+
+    final ok = await showConfirmationDialog(
+      context,
+      title: widget.action,
+      message: 'Promote ${studentIds.length} students?',
+    );
+    if (!ok || !context.mounted) return;
+
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+
+    try {
+      final api = context.read<SessionController>().api;
+      final service = PromotionService(api);
+
+      final result = await service.bulkPromote(
+        studentIds: studentIds,
+        fromGradeId: fromGrade,
+        fromClassroomId: fromClassroom,
+        fromSectionId: fromSection,
+        toGradeId: toGrade,
+        toClassroomId: toClassroom,
+        toSectionId: toSection,
+        academicYear: academicYear,
+        academicYearNew: academicYearNew,
+      );
+
+      if (!context.mounted) return;
+
+      final promoted = result['data']?['promoted'] ?? 0;
+      final failed = result['data']?['failed'] ?? 0;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$promoted promoted, $failed failed.'),
+          backgroundColor: failed > 0 ? Colors.orange : Colors.green,
+        ),
+      );
+
+      context.read<ModuleViewModel>().load();
+    } catch (error) {
+      if (!context.mounted) return;
+      setState(() => _error = ApiService.failureFrom(error).message);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 }
 
