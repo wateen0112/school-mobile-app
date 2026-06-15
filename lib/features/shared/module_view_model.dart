@@ -212,8 +212,12 @@ class ModuleViewModel extends ChangeNotifier {
             languageCode: languageCode,
           );
           return MapEntry(field.name, options);
-        } catch (_) {
-          return MapEntry(field.name, <FormOption>[]);
+        } catch (error, stackTrace) {
+          debugPrint(
+            '[ModuleViewModel] Failed to load options for "${field.name}" '
+            '(key: ${field.dynamicOptionsKey}): $error\n$stackTrace',
+          );
+          rethrow;
         }
       }),
     );

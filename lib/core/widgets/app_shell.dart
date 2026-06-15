@@ -72,7 +72,10 @@ class AppShell extends StatelessWidget {
                     if (value == 'profile') {
                       context.go('/${session.currentRole.name}/profile');
                     }
-                    if (value == 'apiInspector') {
+                    if (value == 'toggleChucker') {
+                      session.toggleChucker();
+                    }
+                    if (value == 'apiInspector' && session.showChucker) {
                       ChuckerFlutter.showChuckerScreen();
                     }
                     if (value == 'logout') {
@@ -87,9 +90,30 @@ class AppShell extends StatelessWidget {
                       child: Text(t(context, 'profile')),
                     ),
                     PopupMenuItem(
-                      value: 'apiInspector',
-                      child: Text(t(context, 'apiInspector')),
+                      value: 'toggleChucker',
+                      child: Row(
+                        children: [
+                          Icon(
+                            session.showChucker
+                                ? Icons.bug_report_rounded
+                                : Icons.bug_report_outlined,
+                            color: session.showChucker ? AppTheme.coral : AppTheme.muted,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            session.showChucker
+                                ? 'Disable API Inspector'
+                                : 'Enable API Inspector',
+                          ),
+                        ],
+                      ),
                     ),
+                    if (session.showChucker)
+                      PopupMenuItem(
+                        value: 'apiInspector',
+                        child: Text(t(context, 'apiInspector')),
+                      ),
                     PopupMenuItem(
                       value: 'logout',
                       child: Text(t(context, 'logout')),
@@ -101,6 +125,15 @@ class AppShell extends StatelessWidget {
             ),
             drawer: _RoleDrawer(groups: groups, currentPath: currentPath),
             body: child,
+            floatingActionButton: session.showChucker
+                ? FloatingActionButton.small(
+                    heroTag: 'chucker_fab',
+                    backgroundColor: AppTheme.coral,
+                    foregroundColor: Colors.white,
+                    onPressed: () => ChuckerFlutter.showChuckerScreen(),
+                    child: const Icon(Icons.network_check_rounded),
+                  )
+                : null,
             bottomNavigationBar: showBottomBar
                 ? _FloatingBottomBar(
                     items: mobileItems,

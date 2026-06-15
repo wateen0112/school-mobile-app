@@ -111,6 +111,7 @@ class ModuleScreen extends StatelessWidget {
           builder: (context, snapshot) {
             final loadingOptions =
                 snapshot.connectionState != ConnectionState.done;
+            final hasError = snapshot.hasError;
             final fieldOptions = snapshot.data ?? const {};
 
             return AnimatedPadding(
@@ -137,6 +138,46 @@ class ModuleScreen extends StatelessWidget {
                                 padding: EdgeInsets.fromLTRB(16, 68, 16, 24),
                                 child: Center(
                                   child: CircularProgressIndicator(),
+                                ),
+                              ),
+                            )
+                          else if (hasError)
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 68, 16, 24),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.error_outline_rounded,
+                                      color: Colors.red,
+                                      size: 48,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      appIsArabic(context)
+                                          ? 'فشل تحميل الخيارات'
+                                          : 'Failed to load options',
+                                      style: Theme.of(context).textTheme.titleMedium,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '${snapshot.error}',
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    FilledButton.icon(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        _openForm(context, module, record: record);
+                                      },
+                                      icon: const Icon(Icons.refresh_rounded),
+                                      label: Text(
+                                        appIsArabic(context) ? 'إعادة المحاولة' : 'Retry',
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             )

@@ -14,13 +14,20 @@ enum AuthStatus { bootstrapping, authenticated, unauthenticated }
 
 class SessionController extends ChangeNotifier {
   SessionController(this._prefs) : authStorage = AuthStorage(_prefs) {
-    api = ApiService(authStorage, onUnauthorized: _handleUnauthorized);
+    showChucker = _prefs.getBool(_chuckerKey) ?? false;
+    api = ApiService(
+      authStorage,
+      onUnauthorized: _handleUnauthorized,
+      showChucker: showChucker,
+    );
     auth = AuthService(api: api, storage: authStorage);
     _restoreFromStorage();
     authStatus = _hasStoredToken
         ? AuthStatus.authenticated
         : AuthStatus.unauthenticated;
   }
+
+  static const _chuckerKey = 'show_chucker';
 
   final SharedPreferences _prefs;
   final AuthStorage authStorage;
@@ -30,6 +37,7 @@ class SessionController extends ChangeNotifier {
 
   AppUser? user;
   late Locale locale;
+  bool showChucker = false;
   bool fullscreen = false;
   bool authBusy = false;
   AuthStatus authStatus = AuthStatus.bootstrapping;
@@ -141,7 +149,13 @@ class SessionController extends ChangeNotifier {
     _notifyRouterRefresh();
   }
 
-  void toggleFullscreen() {
+  Future<void> toggleChucker() async {
+    showChucker = !showChucker;
+    await _prefs.setBool(_chuckerKey, showChucker);
+    notifyListeners();
+  }
+
+  Future<void> toggleFullscreen() async {
     fullscreen = !fullscreen;
     notifyListeners();
   }
@@ -155,6 +169,7 @@ class SessionController extends ChangeNotifier {
   void _restoreFromStorage() {
     final savedLocale = _prefs.getString('locale');
     locale = Locale(savedLocale ?? 'en');
+    showChucker = _prefs.getBool(_chuckerKey) ?? false;
 
     _hasStoredToken = _hasValidToken;
     if (!_hasStoredToken) return;

@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'auth_storage.dart';
+import 'logging_interceptor.dart';
 
 class ApiFailure implements Exception {
   ApiFailure(this.message, {this.statusCode, this.errors});
@@ -16,21 +17,27 @@ class ApiFailure implements Exception {
 }
 
 class ApiService {
-  ApiService(this._storage, {VoidCallback? onUnauthorized})
-    : _onUnauthorized = onUnauthorized,
-      dio = Dio(
-        BaseOptions(
-          baseUrl: _storage.baseUrl,
-          connectTimeout: const Duration(seconds: 20),
-          receiveTimeout: const Duration(seconds: 30),
-          sendTimeout: const Duration(seconds: 30),
-          headers: const {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-        ),
-      ) {
-    dio.interceptors.add(ChuckerDioInterceptor());
+  ApiService(
+    this._storage, {
+    VoidCallback? onUnauthorized,
+    bool showChucker = false,
+  }) : _onUnauthorized = onUnauthorized,
+       dio = Dio(
+         BaseOptions(
+           baseUrl: _storage.baseUrl,
+           connectTimeout: const Duration(seconds: 20),
+           receiveTimeout: const Duration(seconds: 30),
+           sendTimeout: const Duration(seconds: 30),
+           headers: const {
+             'Accept': 'application/json',
+             'Content-Type': 'application/json',
+           },
+         ),
+       ) {
+    if (showChucker) {
+      dio.interceptors.add(ChuckerDioInterceptor());
+    }
+    dio.interceptors.add(LoggingInterceptor());
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {

@@ -24,6 +24,7 @@ class SchoolRepository {
     Map<String, dynamic>? query,
   }) async {
     final config = apiConfigFor(module);
+    debugPrint('[SchoolRepository] list(${module.key}) config: ${config?.endpoint}, listQuery: ${config?.listQuery}');
     if (config == null || module.specialView == 'dashboard') return const [];
 
     try {
@@ -31,9 +32,12 @@ class SchoolRepository {
         config.endpoint,
         query: {...config.listQuery, ...?query},
       );
+      debugPrint('[SchoolRepository] list(${module.key}) response: $body');
       final data = _extractData(body);
+      debugPrint('[SchoolRepository] list(${module.key}) extracted data: $data');
       return _recordsFromData(data, config.idField);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('[SchoolRepository] list(${module.key}) error: $error\n$stackTrace');
       throw ApiService.failureFrom(error);
     }
   }
@@ -116,10 +120,13 @@ class SchoolRepository {
     String moduleKey, {
     String languageCode = 'en',
   }) async {
+    debugPrint('[SchoolRepository] optionsFor($moduleKey) starting...');
     final module = moduleByKey(moduleKey);
+    debugPrint('[SchoolRepository] optionsFor($moduleKey) module found: ${module != null}');
     final records = module == null
         ? await _listByConfigKey(moduleKey)
         : await list(module);
+    debugPrint('[SchoolRepository] optionsFor($moduleKey) records count: ${records.length}');
     return [
       for (final record in records)
         FormOption(
@@ -253,8 +260,12 @@ class SchoolRepository {
     if (config == null) return const [];
     try {
       final body = await _api.get(config.endpoint, query: config.listQuery);
-      return _recordsFromData(_extractData(body), config.idField);
-    } catch (error) {
+      debugPrint('[SchoolRepository] _listByConfigKey($configKey) response: $body');
+      final data = _extractData(body);
+      debugPrint('[SchoolRepository] _listByConfigKey($configKey) extracted data: $data');
+      return _recordsFromData(data, config.idField);
+    } catch (error, stackTrace) {
+      debugPrint('[SchoolRepository] _listByConfigKey($configKey) error: $error\n$stackTrace');
       throw ApiService.failureFrom(error);
     }
   }
@@ -317,6 +328,17 @@ class SchoolRepository {
       ];
     }
     if (body['stats'] is Map) return [body['stats']];
+    // Handle case where body.values contains a List (nested array)
+    for (final value in body.values) {
+      if (value is List) return value;
+    }
+    // Handle case where body.values contains a Map that has a List
+    for (final value in body.values) {
+      if (value is Map) {
+        final nested = value['data'];
+        if (nested is List) return nested;
+      }
+    }
     return const [];
   }
 

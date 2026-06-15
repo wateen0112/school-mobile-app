@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../core/network/logging_interceptor.dart';
 import 'app_state.dart';
 
 class ApiException implements Exception {
@@ -24,7 +25,9 @@ class SchoolApiClient {
               'Content-Type': 'application/json',
             },
           ),
-        );
+        ) {
+    _dio.interceptors.add(LoggingInterceptor());
+  }
 
   final AppState appState;
   final Dio _dio;
