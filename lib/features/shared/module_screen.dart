@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/localization/module_localization.dart';
+import '../../core/data/school_modules.dart';
 import '../../core/data/school_repository.dart';
 import '../../core/models/app_models.dart';
 import '../../core/network/api_service.dart';
@@ -2115,6 +2116,10 @@ class QuizContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Find the appropriate questions module based on the current quiz module
+    final questionsModule = module.key.startsWith('teacher')
+        ? moduleByKey('teacher-questions')
+        : moduleByKey('questions');
     return Column(
       children: [
         SchoolDataTable(
@@ -2137,7 +2142,9 @@ class QuizContent extends StatelessWidget {
                   : 'Question list preview with add/edit actions.',
             ),
             trailing: FilledButton(
-              onPressed: () {},
+              onPressed: questionsModule == null
+                  ? null
+                  : () => ModuleScreen._openForm(context, questionsModule),
               child: Text(t(context, 'addQuestion')),
             ),
           ),

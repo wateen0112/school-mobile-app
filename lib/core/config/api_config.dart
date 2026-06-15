@@ -1,4 +1,4 @@
-import dart:io;
+import 'dart:io';
 
 /// API configuration for the School Management app.
 /// Supports multiple environments: development, local network, and production.
