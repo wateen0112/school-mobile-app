@@ -1,4 +1,5 @@
-import 'package:chucker_flutter/chucker_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
@@ -6,13 +7,18 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/models/app_models.dart';
+import 'core/navigation/notification_navigation.dart';
+import 'core/network/background_notification_service.dart';
+import 'core/router/app_navigator.dart';
 import 'core/router/app_router.dart';
 import 'core/state/session_controller.dart';
 import 'core/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   final prefs = await SharedPreferences.getInstance();
+  await BackgroundNotificationService.initialize();
   runApp(SchoolMobileApp(prefs: prefs));
 }
 
@@ -35,15 +41,16 @@ class _SchoolMobileAppState extends State<SchoolMobileApp> {
   void initState() {
     super.initState();
     _session = SessionController(widget.prefs);
-    _router = createRouter(_session, navigatorKey: ChuckerFlutter.navigatorKey);
+    _router = createRouter(_session, navigatorKey: appNavigatorKey);
     _lastAuthenticated = _session.isAuthenticated;
     _lastRole = _session.currentRole;
     _session.addListener(_onSessionChanged);
-    _session.bootstrap().then((_) {
+    _session.bootstrap().then((_) async {
       if (!mounted) return;
       _lastAuthenticated = _session.isAuthenticated;
       _lastRole = _session.currentRole;
-      setState(() => _router = createRouter(_session));
+      setState(() => _router = createRouter(_session, navigatorKey: appNavigatorKey));
+      await _handleInitialMessage();
     });
   }
 
@@ -51,6 +58,14 @@ class _SchoolMobileAppState extends State<SchoolMobileApp> {
   void dispose() {
     _session.removeListener(_onSessionChanged);
     super.dispose();
+  }
+
+  Future<void> _handleInitialMessage() async {
+    final message = await FirebaseMessaging.instance.getInitialMessage();
+    if (message == null) return;
+    final route = routeForNotificationPayload(message.data);
+    if (!mounted || route == null) return;
+    _router.push(route.$1, extra: route.$2);
   }
 
   void _onSessionChanged() {

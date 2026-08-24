@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "794126424307",
+    "firebase_url": "https://my-new-app-7b529.firebaseio.com",
+    "project_id": "my-new-app-7b529",
+    "storage_bucket": "my-new-app-7b529.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:794126424307:android:fd89d147eef9efcb12ff86",
+        "android_client_info": {
+          "package_name": "com.yallaSchool.yallacode"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBWxzaPksFoCL2-g_QBsgjdfYMjoesrB9g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

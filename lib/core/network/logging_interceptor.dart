@@ -1,8 +1,17 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 
 class LoggingInterceptor extends Interceptor {
+  void _log(String buffer, String name) {
+    // Use stdout.writeln for guaranteed terminal output
+    stdout.writeln(buffer);
+    // Also log to debug console
+    developer.log(buffer, name: name);
+  }
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final buffer = StringBuffer();
@@ -28,7 +37,7 @@ class LoggingInterceptor extends Interceptor {
       buffer.writeln('│   ${options.data}');
     }
     buffer.writeln('└─────────────────────────────────────────────────────────────');
-    developer.log(buffer.toString(), name: 'API_REQUEST');
+    _log(buffer.toString(), 'API_REQUEST');
     handler.next(options);
   }
 
@@ -49,7 +58,7 @@ class LoggingInterceptor extends Interceptor {
     buffer.writeln('│ Body:');
     buffer.writeln('│   ${response.data}');
     buffer.writeln('└─────────────────────────────────────────────────────────────');
-    developer.log(buffer.toString(), name: 'API_RESPONSE');
+    _log(buffer.toString(), 'API_RESPONSE');
     handler.next(response);
   }
 
@@ -67,12 +76,20 @@ class LoggingInterceptor extends Interceptor {
       buffer.writeln('│ Status Message: ${err.response?.statusMessage}');
       buffer.writeln('├─────────────────────────────────────────────────────────────');
       buffer.writeln('│ Response Body:');
-      buffer.writeln('│   ${err.response?.data}');
+      final errorData = err.response?.data;
+      if (errorData is Map || errorData is List) {
+        const encoder = JsonEncoder.withIndent('  ');
+        for (final line in encoder.convert(errorData).split('\n')) {
+          buffer.writeln('│   $line');
+        }
+      } else {
+        buffer.writeln('│   $errorData');
+      }
     } else {
       buffer.writeln('│ Message: ${err.message}');
     }
     buffer.writeln('└─────────────────────────────────────────────────────────────');
-    developer.log(buffer.toString(), name: 'API_ERROR');
+    _log(buffer.toString(), 'API_ERROR');
     handler.next(err);
   }
 }

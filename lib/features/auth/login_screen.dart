@@ -2,16 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/auth/auth_guard.dart';
-import '../../core/models/app_models.dart';
+import '../../core/localization/module_localization.dart';
 import '../../core/state/session_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/shared_widgets.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.role});
-
-  final UserRole role;
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -19,14 +16,24 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _email = TextEditingController(text: 'admin@example.com');
-  final _password = TextEditingController(text: 'password123');
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  late final TextEditingController _baseUrl;
   bool _loading = false;
+  bool _showBaseUrl = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final session = context.read<SessionController>();
+    _baseUrl = TextEditingController(text: session.authStorage.baseUrl);
+  }
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _baseUrl.dispose();
     super.dispose();
   }
 
@@ -70,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         Text(
-                          '${widget.role.name.toUpperCase()} PORTAL',
+                          'SCHOOL MANAGEMENT',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: AppTheme.muted,
@@ -90,7 +97,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 validator: (value) =>
                                     value == null || value.isEmpty
-                                    ? 'Email is required'
+                                    ? appIsArabic(context)
+                                          ? 'البريد الإلكتروني مطلوب'
+                                          : 'Email is required'
                                     : null,
                               ),
                               const SizedBox(height: 12),
@@ -103,9 +112,33 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 validator: (value) =>
                                     value == null || value.isEmpty
-                                    ? 'Password is required'
+                                    ? appIsArabic(context)
+                                          ? 'كلمة المرور مطلوبة'
+                                          : 'Password is required'
                                     : null,
                               ),
+                              if (_showBaseUrl) ...[
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _baseUrl,
+                                  decoration: InputDecoration(
+                                    labelText: appIsArabic(context)
+                                        ? 'عنوان الخادم'
+                                        : 'Server URL',
+                                    hintText: 'http://192.168.1.101:8000/api',
+                                    
+                                    prefixIcon: const Icon(Icons.link_rounded),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return appIsArabic(context)
+                                          ? 'عنوان الخادم مطلوب'
+                                          : 'Server URL is required';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
                               Align(
                                 alignment: AlignmentDirectional.centerEnd,
                                 child: TextButton(
@@ -113,6 +146,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                       context.go('/forgot-password'),
                                   child: Text(t(context, 'forgotPassword')),
                                 ),
+                              ),
+                              TextButton.icon(
+                                onPressed: () => setState(() => _showBaseUrl = !_showBaseUrl),
+                                icon: Icon(_showBaseUrl
+                                    ? Icons.expand_less_rounded
+                                    : Icons.expand_more_rounded),
+                                label: Text(appIsArabic(context)
+                                    ? 'إعدادات الخادم'
+                                    : 'Server settings'),
                               ),
                               SizedBox(
                                 width: double.infinity,
@@ -128,22 +170,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                           final session = context
                                               .read<SessionController>();
                                           try {
+                                            await session.authStorage.setBaseUrl(_baseUrl.text.trim());
                                             await session.login(
                                               email: _email.text.trim(),
                                               password: _password.text,
-                                              role: widget.role,
                                             );
                                             if (!context.mounted) return;
-                                            final from = GoRouterState.of(
-                                              context,
-                                            ).uri.queryParameters['from'];
-                                            if (AuthGuard.isSafeReturnPath(
-                                              from,
-                                            )) {
-                                              context.go(from!);
-                                            } else {
-                                              context.go(session.homeRoute);
-                                            }
+                                            context.go(session.homeRoute);
                                           } catch (error) {
                                             if (!context.mounted) return;
                                             ScaffoldMessenger.of(
@@ -178,10 +211,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  TextButton.icon(
-                    onPressed: () => context.go('/'),
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    label: Text(t(context, 'changePortal')),
+                  TextButton(
+                    onPressed: () => context.go('/register'),
+                    child: Text(t(context, 'createAccount')),
                   ),
                 ],
               ),

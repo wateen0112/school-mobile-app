@@ -31,6 +31,15 @@ class AuthGuard {
 
     if (isPublic) return session.homeRoute;
 
+    // Allow notification and installment detail routes for all authenticated users
+    if (path == '/notifications' ||
+        path == '/notification-detail' ||
+        path == '/my-installments' ||
+        path == '/installment-detail' ||
+        path == '/installment-plan-detail') {
+      return null;
+    }
+
     if (!routeAllowedForRole(path, session.currentRole)) {
       return session.homeRoute;
     }
@@ -48,7 +57,6 @@ class AuthGuard {
   }
 
   static UserRole? roleFromPath(String path) {
-    if (path.startsWith('/admin')) return UserRole.admin;
     if (path.startsWith('/teacher')) return UserRole.teacher;
     if (path.startsWith('/student')) return UserRole.student;
     if (path.startsWith('/parent')) return UserRole.parent;
@@ -68,5 +76,7 @@ class AuthGuard {
 }
 
 bool routeAllowedForRole(String path, UserRole role) {
-  return modulesForRole(role).any((module) => module.route == path);
+  return modulesForRole(role).any(
+    (module) => path == module.route || path.startsWith('${module.route}/'),
+  );
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum UserRole { admin, teacher, student, parent }
+enum UserRole { teacher, student, parent }
 
 enum FieldKind {
   text,
@@ -15,8 +15,14 @@ enum FieldKind {
 }
 
 class AppUser {
-  const AppUser({required this.name, required this.email, required this.role});
+  const AppUser({
+    this.id,
+    required this.name,
+    required this.email,
+    required this.role,
+  });
 
+  final int? id;
   final String name;
   final String email;
   final UserRole role;

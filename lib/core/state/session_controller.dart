@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/school_modules.dart';
+import '../localization/error_messages.dart';
 import '../models/app_models.dart';
 import '../network/api_service.dart';
 import '../network/auth_service.dart';
 import '../network/auth_storage.dart';
+import '../network/background_notification_service.dart';
+import '../network/foreground_notification_poller.dart';
+import '../network/notification_service.dart';
 
 /// Notifies [GoRouter] only for auth/role changes — not locale toggles.
 class RouterRefreshNotifier extends ChangeNotifier {}
@@ -21,6 +25,15 @@ class SessionController extends ChangeNotifier {
       showChucker: showChucker,
     );
     auth = AuthService(api: api, storage: authStorage);
+    notifications = NotificationService(api: api);
+    _foregroundPoller = ForegroundNotificationPoller(
+      storage: authStorage,
+      onCountChanged: (count) {
+        unreadNotificationCount = count;
+        notifyListeners();
+      },
+      interval: const Duration(seconds: 30),
+    );
     _restoreFromStorage();
     authStatus = _hasStoredToken
         ? AuthStatus.authenticated
@@ -33,6 +46,8 @@ class SessionController extends ChangeNotifier {
   final AuthStorage authStorage;
   late final ApiService api;
   late final AuthService auth;
+  late final NotificationService notifications;
+  late final ForegroundNotificationPoller _foregroundPoller;
   final RouterRefreshNotifier routerRefresh = RouterRefreshNotifier();
 
   AppUser? user;
@@ -42,6 +57,7 @@ class SessionController extends ChangeNotifier {
   bool authBusy = false;
   AuthStatus authStatus = AuthStatus.bootstrapping;
   bool _hasStoredToken = false;
+  int unreadNotificationCount = 0;
 
   bool get isBootstrapping => authStatus == AuthStatus.bootstrapping;
   bool get isAuthenticated =>
@@ -51,7 +67,7 @@ class SessionController extends ChangeNotifier {
     return token != null && token.isNotEmpty;
   }
 
-  UserRole get currentRole => user?.role ?? authStorage.role ?? UserRole.admin;
+  UserRole get currentRole => user?.role ?? authStorage.role ?? UserRole.teacher;
   bool get isRtl => locale.languageCode == 'ar';
   String get homeRoute =>
       isAuthenticated ? defaultRouteForRole(currentRole) : '/roles';
@@ -70,7 +86,7 @@ class SessionController extends ChangeNotifier {
       final profile = await auth.me();
       final role =
           authStorage.role ??
-          _parseRole('${profile['type'] ?? profile['guard'] ?? 'admin'}');
+          _parseRole('${profile['type'] ?? profile['guard'] ?? 'teacher'}');
       user = _userFromMap(profile, role);
       await _persistUser(user!);
       authStatus = AuthStatus.authenticated;
@@ -86,11 +102,25 @@ class SessionController extends ChangeNotifier {
 
     notifyListeners();
     _notifyRouterRefresh();
+    refreshUnreadCount();
+
+    // Start FCM notification service when authenticated
+    if (authStatus == AuthStatus.authenticated) {
+      await BackgroundNotificationService.startPolling();
+      // Get FCM token and register with backend
+      await _registerFcmToken();
+    }
+
+    // Start foreground notification polling when authenticated
+    if (authStatus == AuthStatus.authenticated) {
+      _foregroundPoller.start();
+    }
   }
 
   Future<void> selectLocale(Locale value) async {
     if (locale == value) return;
     locale = value;
+    ErrorLocale.languageCode = value.languageCode;
     await _prefs.setString('locale', value.languageCode);
     notifyListeners();
   }
@@ -100,7 +130,6 @@ class SessionController extends ChangeNotifier {
   Future<void> login({
     required String email,
     required String password,
-    required UserRole role,
   }) async {
     authBusy = true;
     notifyListeners();
@@ -108,10 +137,10 @@ class SessionController extends ChangeNotifier {
       final session = await auth.login(
         email: email,
         password: password,
-        requestedRole: role,
       );
       _hasStoredToken = true;
       user = AppUser(
+        id: _parseId(session.user['id'] ?? session.user['ID']),
         name:
             '${session.user['name'] ?? session.user['Name'] ?? roleLabels[session.role]}',
         email: '${session.user['email'] ?? session.user['Email'] ?? email}',
@@ -120,6 +149,13 @@ class SessionController extends ChangeNotifier {
       await _persistUser(user!);
       authStatus = AuthStatus.authenticated;
       _notifyRouterRefresh();
+      refreshUnreadCount();
+      // Start FCM notification service
+      await BackgroundNotificationService.startPolling();
+      // Register FCM token with backend
+      await _registerFcmToken();
+      // Start foreground notification polling
+      _foregroundPoller.start();
     } finally {
       authBusy = false;
       notifyListeners();
@@ -136,6 +172,7 @@ class SessionController extends ChangeNotifier {
 
   Future<void> logout() async {
     await _clearLocalSession();
+    unreadNotificationCount = 0;
     authStatus = AuthStatus.unauthenticated;
     notifyListeners();
     _notifyRouterRefresh();
@@ -160,8 +197,30 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Update the in-memory user from a successful profile update.
+  void updateUserFromProfile({String? name, String? email}) {
+    if (user == null) return;
+    user = AppUser(
+      id: user!.id,
+      name: name ?? user!.name,
+      email: email ?? user!.email,
+      role: user!.role,
+    );
+    notifyListeners();
+  }
+
+  Future<void> refreshUnreadCount() async {
+    try {
+      unreadNotificationCount = await notifications.getUnreadCount();
+      notifyListeners();
+    } catch (_) {
+      unreadNotificationCount = 0;
+    }
+  }
+
   @override
   void dispose() {
+    _foregroundPoller.stop();
     routerRefresh.dispose();
     super.dispose();
   }
@@ -169,18 +228,25 @@ class SessionController extends ChangeNotifier {
   void _restoreFromStorage() {
     final savedLocale = _prefs.getString('locale');
     locale = Locale(savedLocale ?? 'en');
+    ErrorLocale.languageCode = locale.languageCode;
     showChucker = _prefs.getBool(_chuckerKey) ?? false;
 
     _hasStoredToken = _hasValidToken;
     if (!_hasStoredToken) return;
 
     final storedUser = authStorage.user;
-    final storedRole = authStorage.role ?? UserRole.admin;
-    user = _userFromMap(storedUser ?? const {}, storedRole);
+    final storedRole = authStorage.role ?? UserRole.teacher;
+    final storedId = _prefs.getInt('user_id');
+    final map = Map<String, dynamic>.from(storedUser ?? const {});
+    if (storedId != null && !map.containsKey('id')) {
+      map['id'] = storedId;
+    }
+    user = _userFromMap(map, storedRole);
   }
 
   AppUser _userFromMap(Map<String, dynamic> map, UserRole role) {
     return AppUser(
+      id: _parseId(map['id'] ?? map['ID']),
       name: '${map['name'] ?? map['Name'] ?? roleLabels[role] ?? role.name}',
       email: '${map['email'] ?? map['Email'] ?? ''}',
       role: role,
@@ -188,6 +254,9 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> _persistUser(AppUser value) async {
+    if (value.id != null) {
+      await _prefs.setInt('user_id', value.id!);
+    }
     await _prefs.setString('name', value.name);
     await _prefs.setString('email', value.email);
     await _prefs.setString('role', value.role.name);
@@ -197,9 +266,23 @@ class SessionController extends ChangeNotifier {
     user = null;
     _hasStoredToken = false;
     await auth.logout();
+    await _prefs.remove('user_id');
     await _prefs.remove('name');
     await _prefs.remove('email');
     await _prefs.remove('role');
+    // Delete FCM token
+    await deleteFcmToken();
+    // Stop foreground polling
+    _foregroundPoller.stop();
+    // Stop background polling and clear seen notifications
+    await BackgroundNotificationService.stopPolling();
+    await BackgroundNotificationService.clearLastSeen();
+  }
+
+  int? _parseId(dynamic value) {
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   void _setUnauthenticated() {
@@ -215,10 +298,22 @@ class SessionController extends ChangeNotifier {
   }
 
   UserRole _parseRole(String value) {
-    final normalized = value.toLowerCase().replaceAll('web', 'admin');
+    final normalized = value.toLowerCase();
     return UserRole.values.firstWhere(
       (role) => role.name == normalized,
-      orElse: () => UserRole.admin,
+      orElse: () => UserRole.teacher,
     );
+  }
+
+  /// Get FCM token and send it to the backend
+  Future<void> _registerFcmToken() async {
+    try {
+      final fcmToken = await getAndStoreFcmToken();
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+        await api.post('/register-fcm-token', data: {'token': fcmToken});
+      }
+    } catch (_) {
+      // Silently fail - FCM token registration is best-effort
+    }
   }
 }

@@ -9,7 +9,6 @@ bool appIsArabic(BuildContext context) =>
 String localizedRoleLabel(BuildContext context, UserRole role) {
   if (!appIsArabic(context)) return roleLabels[role] ?? role.name;
   return switch (role) {
-    UserRole.admin => 'الإدارة',
     UserRole.teacher => 'المعلم',
     UserRole.student => 'الطالب',
     UserRole.parent => 'ولي الأمر',
@@ -25,6 +24,10 @@ String localizedNavLabel(BuildContext context, NavItem item) {
 String localizedPageTitle(BuildContext context, String path) {
   final module = moduleByRoute(path);
   if (module != null) return localizedModuleTitle(context, module);
+  final routeTitle = appIsArabic(context)
+      ? _routeTitlesAr[path]
+      : _routeTitlesEn[path];
+  if (routeTitle != null) return routeTitle;
   final parts = path.split('/').where((part) => part.isNotEmpty).toList();
   return parts.isEmpty ? 'Home' : parts.last.replaceAll('-', ' ');
 }
@@ -85,18 +88,42 @@ const _moduleTitlesAr = <String, String>{
   'teacher-sections': 'الأقسام',
   'teacher-students': 'الطلاب',
   'teacher-attendance': 'تقارير الحضور',
+  'teacher-evaluations': 'التقييمات',
   'teacher-quizzes': 'اختباراتي',
   'teacher-questions': 'بنك الأسئلة',
   'teacher-online': 'الحصص الإلكترونية',
+  'teacher-paper-exams': 'الامتحانات الورقية',
+  'teacher-complaints': 'الشكاوى والملاحظات',
   'teacher-profile': 'الملف الشخصي',
   'student-dashboard': 'لوحة الطالب',
   'student-exams': 'الاختبارات المتاحة',
+  'student-paper-exam-marks': 'درجات امتحاناتي',
+  'student-complaints': 'الشكاوى والملاحظات',
+  'student-evaluations': 'تقييماتي',
   'student-profile': 'الملف الشخصي',
   'parent-dashboard': 'لوحة ولي الأمر',
   'parent-children': 'أبنائي',
   'parent-attendance': 'تقرير الحضور',
+  'parent-paper-exam-marks': 'درجات امتحانات الأبناء',
+  'parent-complaints': 'الشكاوى والملاحظات',
+  'parent-evaluations': 'التقييمات',
   'parent-finance': 'التقرير المالي',
+  'parent-installments': 'أقساط الأبناء',
   'parent-profile': 'الملف الشخصي',
+  'student-installments': 'أقساطي',
+  'installment-plans': 'خطط الأقساط',
+};
+
+const _routeTitlesAr = <String, String>{
+  '/my-installments': 'أقساطي',
+  '/installment-detail': 'تفاصيل القسط',
+  '/installment-plan-detail': 'تفاصيل خطة الأقساط',
+};
+
+const _routeTitlesEn = <String, String>{
+  '/my-installments': 'My Installments',
+  '/installment-detail': 'Installment Detail',
+  '/installment-plan-detail': 'Installment Plan Detail',
 };
 
 const _moduleGoalsAr = <String, String>{
@@ -124,20 +151,32 @@ const _moduleGoalsAr = <String, String>{
   'settings': 'ضبط اسم المدرسة والشعار واللغة والسنة الدراسية.',
   'teacher-dashboard': 'ملخص جدول المعلم وروابط الإجراءات السريعة.',
   'teacher-sections': 'عرض الأقسام المسندة وعدد الطلاب.',
-  'teacher-students': 'عرض طلاب الأقسام المسندة للمعلم.',
+  'teacher-students': 'صفِّ طلابك، ثم اختر منهم من تريد تقييمه.',
   'teacher-attendance': 'اختيار القسم والتاريخ ومراجعة الحضور.',
+  'teacher-evaluations': 'قيّم طلابك لكل مادة شهرياً.',
   'teacher-quizzes': 'إدارة اختبارات المعلم وحالات النشر.',
   'teacher-questions': 'إدارة بنك الأسئلة الخاص بالمعلم.',
   'teacher-online': 'جدولة حصص المعلم وروابط الاجتماعات.',
   'teacher-profile': 'عرض وتعديل بيانات المعلم وكلمة المرور.',
+  'teacher-paper-exams': 'إنشاء الامتحانات الورقية وإدخال درجات الطلاب.',
+  'teacher-complaints': 'إرسال ومتابعة الشكاوى والملاحظات.',
   'student-dashboard': 'ملخص اختبارات الطالب ودرجاته الحديثة.',
+  'student-installments': 'عرض الأقساط المستحقة والمدفوعة للطالب.',
   'student-exams': 'عرض الاختبارات المتاحة والتنقل بين الأسئلة.',
+  'student-paper-exam-marks': 'عرض درجات الامتحانات الورقية لكل مادة.',
+  'student-complaints': 'إرسال الشكاوى ومتابعة حالتها.',
+  'student-evaluations': 'عرض تقييماتك الشهرية لكل مادة.',
   'student-profile': 'عرض وتعديل بيانات الطالب وكلمة المرور.',
   'parent-dashboard': 'ملخص الأبناء والتنبيهات الحديثة.',
   'parent-children': 'عرض بيانات الأبناء الأكاديمية.',
   'parent-attendance': 'متابعة حضور الأبناء بالألوان والحالات.',
+  'parent-paper-exam-marks': 'عرض درجات الامتحانات الورقية لأبنائك.',
+  'parent-complaints': 'إرسال الشكاوى والملاحظات بالنيابة عن أبنائك.',
+  'parent-evaluations': 'متابعة تقييمات الأبناء الدراسية شهرياً.',
   'parent-finance': 'عرض الرسوم وسجل السندات والمدفوعات.',
+  'parent-installments': 'متابعة أقساط الرسوم لجميع الأبناء المرتبطين.',
   'parent-profile': 'عرض وتعديل بيانات ولي الأمر وكلمة المرور.',
+  'installment-plans': 'إدارة خطط الأقساط النشطة وجدول الدفعات.',
 };
 
 const _groupsAr = <String, String>{
@@ -156,6 +195,7 @@ const _groupsAr = <String, String>{
   'Online Classes': 'الحصص الإلكترونية',
   'Settings': 'الإعدادات',
   'General': 'عام',
+  'Finance': 'المالية',
 };
 
 const _columnsAr = <String, String>{

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/localization/module_localization.dart';
 import '../../core/models/app_models.dart';
 import '../../core/state/session_controller.dart';
 import '../../core/theme/app_theme.dart';
@@ -30,7 +31,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return _AuthFormScaffold(
-      title: 'Register',
+      title: appIsArabic(context) ? 'إنشاء حساب' : 'Register',
       icon: Icons.person_add_alt_1_rounded,
       child: Form(
         key: _formKey,
@@ -50,7 +51,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 12),
             DropdownButtonFormField<UserRole>(
               initialValue: _role,
-              decoration: const InputDecoration(labelText: 'Role'),
+              decoration: InputDecoration(
+                labelText: appIsArabic(context) ? 'الدور' : 'Role',
+              ),
               items: UserRole.values
                   .map(
                     (role) =>
@@ -88,8 +91,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  String? _required(String? value) =>
-      value == null || value.trim().isEmpty ? 'Required' : null;
+  String? _required(String? value) => value == null || value.trim().isEmpty
+      ? (appIsArabic(context) ? 'مطلوب' : 'Required')
+      : null;
 }
 
 class ForgotPasswordScreen extends StatelessWidget {
@@ -98,7 +102,7 @@ class ForgotPasswordScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _AuthFormScaffold(
-      title: 'Forgot password',
+      title: appIsArabic(context) ? 'نسيت كلمة المرور' : 'Forgot password',
       icon: Icons.lock_reset_rounded,
       child: Column(
         children: [
@@ -124,7 +128,7 @@ class EmailVerificationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _AuthFormScaffold(
-      title: 'Verify email',
+      title: appIsArabic(context) ? 'تأكيد البريد الإلكتروني' : 'Verify email',
       icon: Icons.mark_email_read_rounded,
       child: Column(
         children: [

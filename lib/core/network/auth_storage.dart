@@ -15,7 +15,7 @@ class AuthStorage {
 
   static final defaultBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://yallaschool.algoria-wt.com/api',
+    defaultValue:  'http://192.168.1.101:8000/api',
   );
 
   final SharedPreferences _prefs;
@@ -38,7 +38,7 @@ class AuthStorage {
     if (value == null) return null;
     return UserRole.values.firstWhere(
       (role) => role.name == value,
-      orElse: () => UserRole.admin,
+      orElse: () => UserRole.teacher,
     );
   }
 

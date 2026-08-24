@@ -47,6 +47,27 @@ class ModuleViewModel extends ChangeNotifier {
       if (module.specialView == 'dashboard') {
         dashboardData = await _repository.dashboard();
         records = const [];
+      } else if (const [
+        'teacherStudentEvaluation',
+        'teacherEvaluations',
+        'parentEvaluations',
+        'studentEvaluations',
+        'profile',
+        'myInstallments',
+        'installmentPlans',
+        'teacherDashboard',
+        'studentDashboard',
+        'parentDashboard',
+        'attendance',
+        'attendanceHistory',
+        'teacherComplaints',
+        'studentComplaints',
+        'parentComplaints',
+        'teacherPaperExams',
+        'studentPaperExamMarks',
+        'parentPaperExamMarks',
+      ].contains(module.specialView)) {
+        records = const [];
       } else {
         records = module.key == 'students'
             ? await _repository.filteredStudents(

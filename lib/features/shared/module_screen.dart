@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/localization/module_localization.dart';
+import '../../core/localization/error_messages.dart';
 import '../../core/data/school_modules.dart';
 import '../../core/data/school_repository.dart';
 import '../../core/models/app_models.dart';
@@ -19,6 +21,16 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/loading_shimmer.dart';
 import '../../core/widgets/school_data_table.dart';
 import '../../widgets/shared_widgets.dart';
+import '../exams/exams_list_screen.dart';
+import '../installments/presentation/screens/installment_plans_screen.dart';
+import '../installments/presentation/screens/my_installments_screen.dart';
+import '../profile/profile_screen.dart';
+import '../teacher/teacher_students_evaluation_content.dart';
+import '../paper_exams/teacher_paper_exams_content.dart';
+import '../paper_exams/student_marks_content.dart';
+import '../complaints/complaints_content.dart';
+import '../parent/parent_children_content.dart';
+import 'evaluation_content.dart';
 import 'module_view_model.dart';
 
 class ModuleScreen extends StatelessWidget {
@@ -28,6 +40,18 @@ class ModuleScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (module.specialView == 'myInstallments') {
+      return const MyInstallmentsScreen();
+    }
+
+    if (module.specialView == 'examFlow') {
+      return const ExamsListScreen();
+    }
+
+    if (module.specialView == 'installmentPlans') {
+      return const InstallmentPlansScreen();
+    }
+
     return ChangeNotifierProvider(
       key: ValueKey(module.route),
       create: (context) => ModuleViewModel(
@@ -42,10 +66,17 @@ class ModuleScreen extends StatelessWidget {
               () => viewModel.ensureStudentFilters(languageCode),
             );
           }
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
-            children: [
-              _ModuleHeader(module: module),
+          return RefreshIndicator(
+            onRefresh: viewModel.load,
+            color: AppTheme.primary,
+            backgroundColor: Colors.white,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
+              children: [
+              if (module.specialView != 'profile') _ModuleHeader(module: module),
               if (module.key == 'students') ...[
                 const SizedBox(height: 14),
                 _StudentApiFilters(
@@ -82,10 +113,11 @@ class ModuleScreen extends StatelessWidget {
                   onAction: () => _openForm(context, module),
                 )
               else
-                _SpecialOrTable(module: module, viewModel: viewModel),
-            ],
-          );
-        },
+_SpecialOrTable(module: module, viewModel: viewModel),
+                ],
+              ),
+            );
+          },
       ),
     );
   }
@@ -164,7 +196,7 @@ class ModuleScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      '${snapshot.error}',
+                                      translateServerError('${snapshot.error}'),
                                       textAlign: TextAlign.center,
                                       style: Theme.of(context).textTheme.bodySmall,
                                     ),
@@ -346,8 +378,9 @@ class _ModuleHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
             Container(
@@ -407,7 +440,9 @@ class _SpecialOrTable extends StatelessWidget {
       'parentDashboard' => const ParentDashboardContent(),
       'attendance' => const AttendanceContent(),
       'attendanceHistory' => const AttendanceHistoryContent(),
-      'examFlow' => const ExamFlowContent(),
+      'parentAttendance' => ParentAttendanceContent(viewModel: viewModel),
+      'parentChildren' => ParentChildrenContent(records: viewModel.records),
+      'examFlow' => const ExamsListScreen(),
       'financeTabs' => const FinanceTabsContent(),
       'parentWizard' => WizardContent(moduleTitle: 'Parent wizard'),
       'studentForm' => WizardContent(moduleTitle: 'Student multi-step form'),
@@ -425,6 +460,19 @@ class _SpecialOrTable extends StatelessWidget {
       ),
       'quiz' => QuizContent(module: module),
       'settings' => const SettingsContent(),
+      'teacherEvaluations' => const TeacherEvaluationsContent(),
+      'teacherStudentEvaluation' => const TeacherStudentsEvaluationContent(),
+      'teacherPaperExams' => const TeacherPaperExamsContent(),
+      'studentPaperExamMarks' => const StudentPaperExamMarksContent(),
+      'parentPaperExamMarks' => const StudentPaperExamMarksContent(),
+      'teacherComplaints' => const ComplaintsContent(),
+      'studentComplaints' => const ComplaintsContent(),
+      'parentComplaints' => const ComplaintsContent(),
+      'parentEvaluations' => const ParentEvaluationsContent(),
+      'studentEvaluations' => const StudentEvaluationsContent(),
+      'myInstallments' => const MyInstallmentsScreen(),
+      'installmentPlans' => const InstallmentPlansScreen(),
+      'profile' => const ProfileScreen(),
       _ => SchoolDataTable(
         module: module,
         rows: viewModel.rowsFor(context),
@@ -865,9 +913,16 @@ class TeacherDashboardContent extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _ScheduleCard(
-          actions: appIsArabic(context)
-              ? ['تسجيل الحضور', 'إنشاء اختبار']
-              : ['Mark attendance', 'Create quiz'],
+          actions: [
+            _DashboardAction(
+              label: appIsArabic(context) ? 'تسجيل الحضور' : 'Mark attendance',
+              moduleKey: 'teacher-attendance',
+            ),
+            _DashboardAction(
+              label: appIsArabic(context) ? 'إنشاء اختبار' : 'Create quiz',
+              moduleKey: 'teacher-quizzes',
+            ),
+          ],
         ),
       ],
     );
@@ -1632,6 +1687,36 @@ class _AttendanceHistoryCard extends StatelessWidget {
   }
 }
 
+class ParentAttendanceContent extends StatelessWidget {
+  const ParentAttendanceContent({super.key, required this.viewModel});
+
+  final ModuleViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    if (viewModel.records.isEmpty) {
+      return IllustratedEmptyState(
+        title: t(context, 'noData'),
+        message: appIsArabic(context)
+            ? 'لا توجد سجلات حضور لأبنائك.'
+            : 'No attendance records found for your children.',
+        actionLabel: appIsArabic(context) ? 'تحديث' : 'Refresh',
+        onAction: viewModel.load,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final record in viewModel.records) ...[
+          _AttendanceHistoryCard(record: record),
+          const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+}
+
 class _HistoryChip extends StatelessWidget {
   const _HistoryChip({required this.icon, required this.label});
 
@@ -2038,7 +2123,11 @@ class _PromotionBulkFormState extends State<_PromotionBulkForm> {
     }
 
     if (studentIds.isEmpty) {
-      setState(() => _error = 'Please select at least one student.');
+      setState(
+        () => _error = appIsArabic(context)
+            ? 'يرجى اختيار طالب واحد على الأقل.'
+            : 'Please select at least one student.',
+      );
       return;
     }
 
@@ -2055,7 +2144,11 @@ class _PromotionBulkFormState extends State<_PromotionBulkForm> {
     if (fromGrade.isEmpty || fromClassroom.isEmpty || fromSection.isEmpty ||
         toGrade.isEmpty || toClassroom.isEmpty || toSection.isEmpty ||
         academicYear.isEmpty || academicYearNew.isEmpty) {
-      setState(() => _error = 'Please fill all required fields.');
+      setState(
+        () => _error = appIsArabic(context)
+            ? 'يرجى تعبئة جميع الحقول المطلوبة.'
+            : 'Please fill all required fields.',
+      );
       return;
     }
 
@@ -2251,10 +2344,17 @@ class _WelcomeCard extends StatelessWidget {
   }
 }
 
+class _DashboardAction {
+  const _DashboardAction({required this.label, required this.moduleKey});
+
+  final String label;
+  final String moduleKey;
+}
+
 class _ScheduleCard extends StatelessWidget {
   const _ScheduleCard({required this.actions});
 
-  final List<String> actions;
+  final List<_DashboardAction> actions;
 
   @override
   Widget build(BuildContext context) {
@@ -2281,8 +2381,11 @@ class _ScheduleCard extends StatelessWidget {
                 for (final action in actions)
                   ActionChip(
                     avatar: const Icon(Icons.bolt_rounded, size: 18),
-                    label: Text(action),
-                    onPressed: () {},
+                    label: Text(action.label),
+                    onPressed: () {
+                      final module = moduleByKey(action.moduleKey);
+                      if (module != null) context.push(module.route);
+                    },
                   ),
               ],
             ),

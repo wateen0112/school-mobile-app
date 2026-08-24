@@ -15,7 +15,7 @@ class RoleSelectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionController>();
-    final roles = UserRole.values;
+    final roles = [UserRole.teacher, UserRole.student, UserRole.parent];
     return Container(
       decoration: const BoxDecoration(gradient: AppTheme.pageGradient),
       child: Scaffold(
@@ -78,9 +78,7 @@ class RoleSelectionScreen extends StatelessWidget {
                                 width: 58,
                                 height: 58,
                                 decoration: BoxDecoration(
-                                  gradient: role == UserRole.admin
-                                      ? AppTheme.ctaGradient
-                                      : AppTheme.promoGradient,
+                                  gradient: AppTheme.promoGradient,
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
@@ -160,7 +158,6 @@ class RoleSelectionScreen extends StatelessWidget {
 
   IconData _icon(UserRole role) {
     return switch (role) {
-      UserRole.admin => Icons.admin_panel_settings_rounded,
       UserRole.teacher => Icons.badge_rounded,
       UserRole.student => Icons.school_rounded,
       UserRole.parent => Icons.family_restroom_rounded,

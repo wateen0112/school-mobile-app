@@ -658,19 +658,24 @@ class _RecordActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!module.hasEdit && !module.hasDelete) {
+      return const SizedBox.shrink();
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
-          tooltip: t(context, 'edit'),
-          onPressed: module.hasEdit ? onEdit : null,
-          icon: const Icon(Icons.edit_rounded, color: AppTheme.primary),
-        ),
-        IconButton(
-          tooltip: t(context, 'delete'),
-          onPressed: module.hasDelete ? onDelete : null,
-          icon: const Icon(Icons.delete_rounded, color: AppTheme.coral),
-        ),
+        if (module.hasEdit)
+          IconButton(
+            tooltip: t(context, 'edit'),
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit_rounded, color: AppTheme.primary),
+          ),
+        if (module.hasDelete)
+          IconButton(
+            tooltip: t(context, 'delete'),
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_rounded, color: AppTheme.coral),
+          ),
       ],
     );
   }
@@ -724,7 +729,8 @@ class _WideDataTable extends StatelessWidget {
                   label: Text(localizedColumnLabel(context, module.columns[i])),
                   onSort: onSort,
                 ),
-            DataColumn(label: Text(t(context, 'actions'))),
+            if (module.hasEdit || module.hasDelete)
+              DataColumn(label: Text(t(context, 'actions'))),
           ],
           rows: [
             for (final pair in pairs)
@@ -737,13 +743,14 @@ class _WideDataTable extends StatelessWidget {
                   )
                     if (!_isActionColumn(module.columns[i]))
                       DataCell(Text(pair.row[i])),
-                  DataCell(
-                    _RecordActions(
-                      module: module,
-                      onEdit: () => onEdit(pair.record),
-                      onDelete: () => onDelete(pair.record),
+                  if (module.hasEdit || module.hasDelete)
+                    DataCell(
+                      _RecordActions(
+                        module: module,
+                        onEdit: () => onEdit(pair.record),
+                        onDelete: () => onDelete(pair.record),
+                      ),
                     ),
-                  ),
                 ],
               ),
           ],

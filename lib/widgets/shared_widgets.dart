@@ -23,6 +23,18 @@ String displayValue(dynamic value, {String languageCode = 'en'}) {
     if (value['title'] != null) {
       return displayValue(value['title'], languageCode: languageCode);
     }
+    if (value['Name_Class'] != null) {
+      return displayValue(value['Name_Class'], languageCode: languageCode);
+    }
+    if (value['Name_Section'] != null) {
+      return displayValue(value['Name_Section'], languageCode: languageCode);
+    }
+    if (value['Name_Father'] != null) {
+      return displayValue(value['Name_Father'], languageCode: languageCode);
+    }
+    if (value['Name_Mother'] != null) {
+      return displayValue(value['Name_Mother'], languageCode: languageCode);
+    }
     return value.values
         .map((item) => displayValue(item, languageCode: languageCode))
         .where((item) => item.isNotEmpty)

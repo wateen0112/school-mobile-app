@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// Legacy color system kept for screens that still import it.
+///
+/// Updated to match the eduadmin-dashboard Apple-style palette:
+///   Primary: #007AFF, Secondary/Warning: #FF9500,
+///   Success: #34C759, Danger: #FF3B30,
+///   Background: #F5F5F7, Surface: #FFFFFF,
+///   Ink: #1D1D1F, Muted: #86868B, Line: #D2D2D7.
 class SchoolColors {
-  static const background = Color(0xfff4f7ff);
+  static const background = Color(0xffF5F5F7);
   static const surface = Color(0xffffffff);
-  static const primary = Color(0xff5f7cf7);
-  static const primaryDark = Color(0xff3149d8);
-  static const secondary = Color(0xffff704d);
-  static const accent = Color(0xffffc84c);
-  static const success = Color(0xff2ecc71);
-  static const danger = Color(0xffef5350);
-  static const ink = Color(0xff20263a);
-  static const muted = Color(0xff7b86a6);
-  static const line = Color(0xffdfe5f5);
-  static const cardBlue = Color(0xff86a6ff);
+  static const primary = Color(0xff007AFF);
+  static const primaryDark = Color(0xff0062CC);
+  static const secondary = Color(0xffFF9500);
+  static const accent = Color(0xffFF9500);
+  static const success = Color(0xff34C759);
+  static const danger = Color(0xffFF3B30);
+  static const ink = Color(0xff1D1D1F);
+  static const muted = Color(0xff86868B);
+  static const line = Color(0xffD2D2D7);
+  static const cardBlue = Color(0xff5AC8FA);
 }
 
 class SchoolTheme {
@@ -80,7 +87,7 @@ class SchoolTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           minimumSize: const Size.fromHeight(48),
-          backgroundColor: SchoolColors.secondary,
+          backgroundColor: SchoolColors.primary,
           foregroundColor: Colors.white,
           textStyle: textTheme.labelLarge?.copyWith(
             fontWeight: FontWeight.w800,
@@ -89,7 +96,7 @@ class SchoolTheme {
             borderRadius: BorderRadius.circular(24),
           ),
           elevation: 8,
-          shadowColor: SchoolColors.secondary.withValues(alpha: .26),
+          shadowColor: SchoolColors.primary.withValues(alpha: .26),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -103,8 +110,8 @@ class SchoolTheme {
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: SchoolColors.secondary,
-        unselectedItemColor: Color(0xffa9b5d4),
+        selectedItemColor: SchoolColors.primary,
+        unselectedItemColor: Color(0xff86868B),
         elevation: 0,
       ),
     );
@@ -113,13 +120,13 @@ class SchoolTheme {
 
 class SchoolGradients {
   static const hero = LinearGradient(
-    colors: [Color(0xff9ab6ff), Color(0xff5368ef)],
+    colors: [Color(0xff47A7FF), Color(0xff007AFF)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
   static const promo = LinearGradient(
-    colors: [Color(0xff86a6ff), Color(0xff4d62f1)],
+    colors: [Color(0xff5AC8FA), Color(0xff007AFF)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

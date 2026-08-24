@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../features/notifications/notification_dropdown.dart';
 import '../data/school_modules.dart';
 import '../localization/module_localization.dart';
 import '../models/app_models.dart';
@@ -46,15 +47,7 @@ class AppShell extends StatelessWidget {
               ),
               title: _PageTitle(path: currentPath),
               actions: [
-                Badge(
-                  label: const Text('3'),
-                  backgroundColor: AppTheme.coral,
-                  child: _ShellIconButton(
-                    onPressed: () {},
-                    icon: Icons.notifications_rounded,
-                    tooltip: 'Notifications',
-                  ),
-                ),
+                _NotificationDropdown(session: session),
                 PopupMenuButton<String>(
                   icon: Container(
                     width: 42,
@@ -200,6 +193,101 @@ class AppShell extends StatelessWidget {
   }
 }
 
+class _NotificationDropdown extends StatefulWidget {
+  const _NotificationDropdown({required this.session});
+
+  final SessionController session;
+
+  @override
+  State<_NotificationDropdown> createState() => _NotificationDropdownState();
+}
+
+class _NotificationDropdownState extends State<_NotificationDropdown> {
+  OverlayEntry? _overlayEntry;
+
+  void _toggleDropdown() {
+    if (_overlayEntry != null) {
+      _closeDropdown();
+    } else {
+      _showDropdown();
+    }
+  }
+
+  void _showDropdown() {
+    _overlayEntry = _createOverlayEntry();
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _closeDropdown() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  OverlayEntry _createOverlayEntry() {
+    final renderBox = context.findRenderObject() as RenderBox;
+    final size = renderBox.size;
+    final position = renderBox.localToGlobal(Offset.zero);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+
+    // Calculate dropdown position to keep it within screen bounds
+    double dropdownWidth = 320;
+    double left;
+    if (isRtl) {
+      // For RTL: align left edge of dropdown with left edge of bell icon
+      left = position.dx;
+    } else {
+      // For LTR: align right edge of dropdown with right edge of bell icon
+      left = position.dx + size.width - dropdownWidth;
+    }
+    // Clamp to screen bounds
+    left = left.clamp(8.0, screenWidth - dropdownWidth - 8.0);
+
+    return OverlayEntry(
+      builder: (context) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: _closeDropdown,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Container(color: Colors.transparent),
+            ),
+            Positioned(
+              left: left,
+              top: position.dy + size.height + 8,
+              child: NotificationDropdownMenu(
+                session: widget.session,
+                onClose: _closeDropdown,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _closeDropdown();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Badge(
+      label: widget.session.unreadNotificationCount > 0
+          ? Text('${widget.session.unreadNotificationCount > 99 ? '99+' : widget.session.unreadNotificationCount}')
+          : null,
+      backgroundColor: AppTheme.coral,
+      child: _ShellIconButton(
+        onPressed: _toggleDropdown,
+        icon: Icons.notifications_rounded,
+        tooltip: 'Notifications',
+      ),
+    );
+  }
+}
+
 class _RoleDrawer extends StatelessWidget {
   const _RoleDrawer({required this.groups, required this.currentPath});
 
@@ -208,36 +296,65 @@ class _RoleDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final session = context.read<SessionController>();
+
     return Drawer(
       backgroundColor: Colors.white,
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
           children: [
-            for (final group in groups) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  localizedGroupLabel(context, group.label),
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: AppTheme.muted,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: .4,
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                children: [
+                  for (final group in groups) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                      child: Text(
+                        localizedGroupLabel(context, group.label),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: AppTheme.muted,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: .4,
+                        ),
+                      ),
+                    ),
+                    for (final item in group.items)
+                      _DrawerNavTile(
+                        item: item,
+                        selected: item.route == currentPath,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          if (item.route != currentPath) {
+                            GoRouter.of(context).go(item.route);
+                          }
+                        },
+                      ),
+                  ],
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: ListTile(
+                leading: const Icon(Icons.logout_rounded, color: AppTheme.coral),
+                title: Text(
+                  t(context, 'logout'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.coral,
                   ),
                 ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  session.logout().then((_) {
+                    if (context.mounted) context.go('/roles');
+                  });
+                },
               ),
-              for (final item in group.items)
-                _DrawerNavTile(
-                  item: item,
-                  selected: item.route == currentPath,
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    if (item.route != currentPath) {
-                      GoRouter.of(context).go(item.route);
-                    }
-                  },
-                ),
-            ],
+            ),
           ],
         ),
       ),

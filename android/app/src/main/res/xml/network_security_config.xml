@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow cleartext (HTTP) traffic during development.
+         For production builds using HTTPS, this file can be removed or
+         restricted to specific trusted domains. -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

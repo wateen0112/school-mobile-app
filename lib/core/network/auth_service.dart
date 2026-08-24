@@ -25,7 +25,6 @@ class AuthService {
   Future<AuthSession> login({
     required String email,
     required String password,
-    required UserRole requestedRole,
   }) async {
     try {
       final body = await _api.post(
@@ -42,7 +41,7 @@ class AuthService {
           ? userValue
           : Map<String, dynamic>.from(userValue as Map);
       final role = _parseRole(
-        '${body['type'] ?? body['guard'] ?? requestedRole.name}',
+        '${body['type'] ?? body['guard'] ?? 'teacher'}',
       );
 
       if (token is! String || token.isEmpty) {
@@ -79,10 +78,10 @@ class AuthService {
   }
 
   UserRole _parseRole(String value) {
-    final normalized = value.toLowerCase().replaceAll('web', 'admin');
+    final normalized = value.toLowerCase();
     return UserRole.values.firstWhere(
       (role) => role.name == normalized,
-      orElse: () => UserRole.admin,
+      orElse: () => UserRole.teacher,
     );
   }
 }

@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:chucker_flutter/chucker_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../localization/error_messages.dart';
 import 'auth_storage.dart';
 import 'logging_interceptor.dart';
 
@@ -28,6 +31,7 @@ class ApiService {
            connectTimeout: const Duration(seconds: 20),
            receiveTimeout: const Duration(seconds: 30),
            sendTimeout: const Duration(seconds: 30),
+           responseType: ResponseType.plain,
            headers: const {
              'Accept': 'application/json',
              'Content-Type': 'application/json',
@@ -65,8 +69,9 @@ class ApiService {
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? query,
+    Options? options,
   }) async {
-    return _decode(await dio.get(path, queryParameters: query));
+    return _decode(await dio.get(path, queryParameters: query, options: options));
   }
 
   Future<Map<String, dynamic>> post(
@@ -108,30 +113,70 @@ class ApiService {
   }
 
   Map<String, dynamic> _decode(Response<dynamic> response) {
-    final body = response.data;
-    if (body is Map<String, dynamic>) return body;
-    if (body is Map) return Map<String, dynamic>.from(body);
-    if (body is List) return {'success': true, 'data': body};
-    return {'success': true, 'data': body};
+    final raw = response.data;
+
+    if (raw is Map) {
+      return raw is Map<String, dynamic>
+          ? raw
+          : Map<String, dynamic>.from(raw);
+    }
+
+    if (raw is List) {
+      return {'success': true, 'data': raw};
+    }
+
+    final body = raw is String ? raw : raw.toString();
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        return decoded is Map<String, dynamic>
+            ? decoded
+            : Map<String, dynamic>.from(decoded);
+      }
+      if (decoded is List) {
+        return {'success': true, 'data': decoded};
+      }
+      return {'success': true, 'data': decoded};
+    } on FormatException catch (e) {
+      final preview = body.length > 300 ? '${body.substring(0, 300)}...' : body;
+      debugPrint('[ApiService] JSON decode error at ${e.offset}: $preview');
+      throw ApiFailure(
+        ErrorLocale.isArabic
+            ? 'استجابة غير صالحة من الخادم. تأكد من صيغة البيانات المرسلة.'
+            : 'Server returned an invalid response. Expected JSON but received: $preview',
+      );
+    }
   }
 
   static ApiFailure failureFrom(Object error) {
-    if (error is ApiFailure) return error;
+    if (error is ApiFailure) {
+      return ApiFailure(
+        translateServerError(error.message),
+        statusCode: error.statusCode,
+        errors: error.errors,
+      );
+    }
     if (error is DioException) {
       final status = error.response?.statusCode;
       final data = error.response?.data;
-      if (data is Map) {
+      if (data is Map ||
+          (data is String && data.trim().isNotEmpty)) {
         return ApiFailure(
-          '${data['message'] ?? data['error'] ?? error.message ?? 'Request failed'}',
+          formatApiError(statusCode: status, responseData: data),
           statusCode: status,
-          errors: data['errors'],
+          errors: data is Map
+              ? data['errors'] ??
+                    (data['message'] is String
+                        ? data['message']
+                        : null)
+              : null,
         );
       }
-      return ApiFailure(
-        error.message ?? 'Network request failed',
-        statusCode: status,
-      );
+      final message = connectionErrorMessage(error.type, error.message);
+      return ApiFailure(message, statusCode: status);
     }
-    return ApiFailure(error.toString());
+    final raw = error.toString();
+    return ApiFailure(translateServerError(raw));
   }
 }

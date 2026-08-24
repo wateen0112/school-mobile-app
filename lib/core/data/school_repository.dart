@@ -195,6 +195,38 @@ class SchoolRepository {
     }
   }
 
+  Future<List<SchoolRecord>> teacherSubjects() async {
+    try {
+      final body = await _api.get('/teacher/subjects');
+      return _recordsFromData(_extractData(body), 'id');
+    } catch (error) {
+      throw ApiService.failureFrom(error);
+    }
+  }
+
+  Future<List<SchoolRecord>> teacherStudents({
+    String? gradeId,
+    String? classroomId,
+    String? sectionId,
+    String? subjectId,
+  }) async {
+    try {
+      final body = await _api.get(
+        '/teacher/students',
+        query: {
+          if (gradeId != null && gradeId.isNotEmpty) 'grade_id': gradeId,
+          if (classroomId != null && classroomId.isNotEmpty)
+            'classroom_id': classroomId,
+          if (sectionId != null && sectionId.isNotEmpty) 'section_id': sectionId,
+          if (subjectId != null && subjectId.isNotEmpty) 'subject_id': subjectId,
+        },
+      );
+      return _recordsFromData(_extractData(body), 'id');
+    } catch (error) {
+      throw ApiService.failureFrom(error);
+    }
+  }
+
   Future<List<SchoolRecord>> attendanceStudentsForSection(
     String sectionId,
   ) async {

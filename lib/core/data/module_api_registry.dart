@@ -320,9 +320,15 @@ final moduleApiConfigs = <String, ModuleApiConfig>{
   'student-exams': ModuleApiConfig(endpoint: '/Quizzes'),
   'student-profile': ModuleApiConfig(endpoint: '/Students'),
   'parent-children': ModuleApiConfig(endpoint: '/Students'),
-  'parent-attendance': ModuleApiConfig(endpoint: '/Attendance'),
+  'parent-attendance': ModuleApiConfig(endpoint: '/parent/attendance'),
   'parent-finance': ModuleApiConfig(endpoint: '/Fees'),
   'parent-profile': ModuleApiConfig(endpoint: '/parents'),
+  'teacher-evaluations': ModuleApiConfig(endpoint: '/evaluations'),
+  'student-evaluations': ModuleApiConfig(endpoint: '/evaluations/report/student'),
+  'parent-evaluations': ModuleApiConfig(endpoint: '/evaluations/report/parent'),
+  'teacher-paper-exams': ModuleApiConfig(endpoint: '/paper-exams'),
+  'student-paper-exam-marks': ModuleApiConfig(endpoint: '/paper-exam-marks/my'),
+  'parent-paper-exam-marks': ModuleApiConfig(endpoint: '/paper-exam-marks/my'),
 };
 
 ModuleApiConfig? apiConfigFor(ModuleSpec module) =>

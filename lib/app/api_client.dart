@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../core/localization/error_messages.dart';
 import '../core/network/logging_interceptor.dart';
 import 'app_state.dart';
 
@@ -52,7 +53,11 @@ class SchoolApiClient {
     final user = body['user'] ?? body['data']?['user'] ?? const {};
     final type = body['type'] ?? user['type'] ?? body['data']?['type'] ?? 'admin';
     if (token is! String || token.isEmpty) {
-      throw ApiException('Login response did not include an access token.');
+      throw ApiException(
+        ErrorLocale.isArabic
+            ? 'تم تسجيل الدخول لكن لم يتم إرجاع رمز الوصول.'
+            : 'Login response did not include an access token.',
+      );
     }
     await appState.signIn(
       accessToken: token,
@@ -111,13 +116,15 @@ class SchoolApiClient {
       return {'data': body};
     } on DioException catch (error) {
       final data = error.response?.data;
-      if (data is Map) {
-        throw ApiException(
-          '${data['message'] ?? data['error'] ?? error.message ?? 'Request failed'}',
-          statusCode: error.response?.statusCode,
-        );
-      }
-      throw ApiException(error.message ?? 'Request failed', statusCode: error.response?.statusCode);
+      final status = error.response?.statusCode;
+      throw ApiException(
+        formatApiError(
+          statusCode: status,
+          responseData: data,
+          connectionMessage: connectionErrorMessage(error.type, error.message),
+        ),
+        statusCode: status,
+      );
     }
   }
 }
