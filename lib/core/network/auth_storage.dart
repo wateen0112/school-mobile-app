@@ -15,7 +15,7 @@ class AuthStorage {
 
   static final defaultBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue:  'http://192.168.1.101:8000/api',
+   
   );
 
   final SharedPreferences _prefs;
