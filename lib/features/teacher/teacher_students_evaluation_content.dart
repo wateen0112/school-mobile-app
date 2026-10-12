@@ -140,9 +140,13 @@ String _displayName(dynamic value, {String languageCode = 'en'}) {
     final map = Map<String, dynamic>.from(value);
     final direct = map[languageCode] ??
         map['Name'] ??
+        map['Name_Section'] ??
+        map['Name_Class'] ??
         map['name'] ??
         map['Name_en'] ??
         map['Name_ar'] ??
+        map['Name_class_en'] ??
+        map['Name_class_ar'] ??
         map['name_en'] ??
         map['name_ar'] ??
         map.values.firstOrNull;
@@ -174,7 +178,7 @@ class _TeacherStudentsEvaluationContentState
   late final SchoolRepository _repository;
   int? _teacherId;
 
-  List<dynamic> _teacherSections = [];
+  List<Map<String, dynamic>> _teacherAssignments = const [];
   List<FormOption> _gradeOptions = [];
   List<FormOption> _classroomOptions = [];
   List<FormOption> _sectionOptions = [];
@@ -203,39 +207,21 @@ class _TeacherStudentsEvaluationContentState
   }
 
   Future<void> _init() async {
-    await _loadTeacherSections();
-    await _loadTeacherSubjects();
+    await _loadAssignments();
   }
 
-  Future<void> _loadTeacherSections() async {
+  /// Load the teacher's section/subject assignments once. Every filter option
+  /// and the student list are derived from these pairs, so the screen only ever
+  /// offers combinations the teacher is actually assigned to teach.
+  Future<void> _loadAssignments() async {
     setState(() => _loadingFilters = true);
     try {
-      final body = await _api.get('/teacher/sections');
-      final data = body['data'];
-      _teacherSections = data is List ? data : [];
-      _buildGradeOptions();
+      _teacherAssignments = await _repository.teacherAssignments();
       _error = null;
+      _rebuildFilterOptions();
     } catch (error) {
       _error = ApiService.failureFrom(error).message;
-    } finally {
-      if (mounted) setState(() => _loadingFilters = false);
-    }
-  }
-
-  Future<void> _loadTeacherSubjects() async {
-    setState(() => _loadingFilters = true);
-    try {
-      final languageCode = Localizations.localeOf(context).languageCode;
-      final records = await _repository.teacherSubjects();
-      _subjectOptions = records
-          .map((r) => FormOption(
-                value: '${r.id}',
-                label: _optionLabel(r.raw, languageCode),
-              ))
-          .toList();
-      _error = null;
-    } catch (error) {
-      _error = ApiService.failureFrom(error).message;
+      _teacherAssignments = const [];
     } finally {
       if (mounted) setState(() => _loadingFilters = false);
     }
@@ -266,13 +252,43 @@ class _TeacherStudentsEvaluationContentState
     }
   }
 
+  /// Rebuild every filter option from the loaded assignments, honouring the
+  /// currently selected grade/classroom/section/subject so the dropdowns always
+  /// cascade and never offer an unassigned combination.
+  void _rebuildFilterOptions() {
+    _buildGradeOptions();
+    _buildClassroomOptions();
+    _buildSectionOptions();
+    _buildSubjectOptions();
+  }
+
+  /// True when the assignment matches the current section/subject selection.
+  bool _assignmentMatches(Map<String, dynamic> assignment) {
+    if (_selectedSectionId != null &&
+        '${assignment['section_id']}' != _selectedSectionId) {
+      return false;
+    }
+    if (_selectedSubjectId != null &&
+        '${assignment['subject_id']}' != _selectedSubjectId) {
+      return false;
+    }
+    return true;
+  }
+
+  Map<String, dynamic>? _sectionOf(Map<String, dynamic> assignment) {
+    final section = _lookup(assignment, 'section');
+    return section is Map ? Map<String, dynamic>.from(section) : null;
+  }
+
   void _buildGradeOptions() {
     final languageCode = Localizations.localeOf(context).languageCode;
     final seen = <String>{};
     _gradeOptions = [];
-    for (final section in _teacherSections) {
-      final raw = section is Map ? Map<String, dynamic>.from(section) : <String, dynamic>{};
-      final grade = _lookup(raw, 'Grades');
+    for (final assignment in _teacherAssignments) {
+      if (!_assignmentMatches(assignment)) continue;
+      final section = _sectionOf(assignment);
+      if (section == null) continue;
+      final grade = _lookup(section, 'Grades');
       if (grade is! Map) continue;
       final gradeId = '${grade['id']}';
       if (seen.add(gradeId)) {
@@ -282,19 +298,22 @@ class _TeacherStudentsEvaluationContentState
         ));
       }
     }
-    _buildClassroomOptions();
   }
 
   void _buildClassroomOptions() {
     final languageCode = Localizations.localeOf(context).languageCode;
     final seen = <String>{};
     _classroomOptions = [];
-    for (final section in _teacherSections) {
-      final raw = section is Map ? Map<String, dynamic>.from(section) : <String, dynamic>{};
-      final grade = _lookup(raw, 'Grades');
-      final classroom = _lookup(raw, 'My_classs');
+    for (final assignment in _teacherAssignments) {
+      if (!_assignmentMatches(assignment)) continue;
+      final section = _sectionOf(assignment);
+      if (section == null) continue;
+      final grade = _lookup(section, 'Grades');
+      final classroom = _lookup(section, 'My_classs');
       if (grade is! Map || classroom is! Map) continue;
-      if (_selectedGradeId != null && '${grade['id']}' != _selectedGradeId) continue;
+      if (_selectedGradeId != null && '${grade['id']}' != _selectedGradeId) {
+        continue;
+      }
       final classroomId = '${classroom['id']}';
       if (seen.add(classroomId)) {
         _classroomOptions.add(FormOption(
@@ -303,22 +322,66 @@ class _TeacherStudentsEvaluationContentState
         ));
       }
     }
-    _buildSectionOptions();
   }
 
   void _buildSectionOptions() {
     final languageCode = Localizations.localeOf(context).languageCode;
+    final seen = <String>{};
     _sectionOptions = [];
-    for (final section in _teacherSections) {
-      final raw = section is Map ? Map<String, dynamic>.from(section) : <String, dynamic>{};
-      final grade = _lookup(raw, 'Grades');
-      final classroom = _lookup(raw, 'My_classs');
-      if (_selectedGradeId != null && (grade is! Map || '${grade['id']}' != _selectedGradeId)) continue;
-      if (_selectedClassroomId != null && (classroom is! Map || '${classroom['id']}' != _selectedClassroomId)) continue;
-      _sectionOptions.add(FormOption(
-        value: '${raw['id']}',
-        label: _displayName(raw, languageCode: languageCode),
-      ));
+    for (final assignment in _teacherAssignments) {
+      if (!_assignmentMatches(assignment)) continue;
+      final section = _sectionOf(assignment);
+      if (section == null) continue;
+      final grade = _lookup(section, 'Grades');
+      final classroom = _lookup(section, 'My_classs');
+      if (_selectedGradeId != null &&
+          (grade is! Map || '${grade['id']}' != _selectedGradeId)) {
+        continue;
+      }
+      if (_selectedClassroomId != null &&
+          (classroom is! Map || '${classroom['id']}' != _selectedClassroomId)) {
+        continue;
+      }
+      final sectionId = '${section['id']}';
+      if (seen.add(sectionId)) {
+        _sectionOptions.add(FormOption(
+          value: sectionId,
+          label: _displayName(section, languageCode: languageCode),
+        ));
+      }
+    }
+  }
+
+  void _buildSubjectOptions() {
+    final languageCode = Localizations.localeOf(context).languageCode;
+    final seen = <String>{};
+    _subjectOptions = [];
+    for (final assignment in _teacherAssignments) {
+      final section = _sectionOf(assignment);
+      if (section == null) continue;
+      final grade = _lookup(section, 'Grades');
+      final classroom = _lookup(section, 'My_classs');
+      if (_selectedGradeId != null &&
+          (grade is! Map || '${grade['id']}' != _selectedGradeId)) {
+        continue;
+      }
+      if (_selectedClassroomId != null &&
+          (classroom is! Map || '${classroom['id']}' != _selectedClassroomId)) {
+        continue;
+      }
+      if (_selectedSectionId != null &&
+          '${assignment['section_id']}' != _selectedSectionId) {
+        continue;
+      }
+      final subject = _lookup(assignment, 'subject');
+      if (subject is! Map) continue;
+      final subjectId = '${subject['id']}';
+      if (seen.add(subjectId)) {
+        _subjectOptions.add(FormOption(
+          value: subjectId,
+          label: _displayName(subject, languageCode: languageCode),
+        ));
+      }
     }
   }
 
@@ -327,28 +390,89 @@ class _TeacherStudentsEvaluationContentState
       _selectedGradeId = value;
       _selectedClassroomId = null;
       _selectedSectionId = null;
+      _selectedSubjectId = null;
       _students = [];
       _selectedStudentIds.clear();
+      _rebuildFilterOptions();
     });
-    _buildClassroomOptions();
   }
 
   void _onClassroomChanged(String? value) {
     setState(() {
       _selectedClassroomId = value;
       _selectedSectionId = null;
+      _selectedSubjectId = null;
       _students = [];
       _selectedStudentIds.clear();
+      _rebuildFilterOptions();
     });
-    _buildSectionOptions();
   }
 
   void _onSectionChanged(String? value) {
     setState(() {
       _selectedSectionId = value;
+      _selectedSubjectId = null;
       _students = [];
       _selectedStudentIds.clear();
+      _rebuildFilterOptions();
     });
+  }
+
+  void _onSubjectChanged(String? value) {
+    setState(() {
+      _selectedSubjectId = value;
+      _students = [];
+      _selectedStudentIds.clear();
+      // Selecting a subject narrows the other filters to the sections where
+      // that subject is actually taught.
+      if (value != null) _pruneFiltersForSubject(value);
+      _rebuildFilterOptions();
+    });
+  }
+
+  /// Drop a selected grade/classroom/section that the chosen subject is not
+  /// taught in, so the filter state never contradicts the subject selection.
+  void _pruneFiltersForSubject(String subjectId) {
+    bool subjectIn(String sectionId, String? gradeId, String? classroomId) {
+      for (final assignment in _teacherAssignments) {
+        if ('${assignment['subject_id']}' != subjectId) continue;
+        if (sectionId.isNotEmpty && '${assignment['section_id']}' != sectionId) {
+          continue;
+        }
+        if (gradeId != null) {
+          final section = _sectionOf(assignment);
+          final grade = section == null ? null : _lookup(section, 'Grades');
+          if (grade is! Map || '${grade['id']}' != gradeId) continue;
+        }
+        if (classroomId != null) {
+          final section = _sectionOf(assignment);
+          final classroom =
+              section == null ? null : _lookup(section, 'My_classs');
+          if (classroom is! Map || '${classroom['id']}' != classroomId) {
+            continue;
+          }
+        }
+        return true;
+      }
+      return false;
+    }
+
+    if (_selectedSectionId != null &&
+        !subjectIn(_selectedSectionId!, _selectedGradeId, _selectedClassroomId)) {
+      _selectedSectionId = null;
+      _selectedClassroomId = null;
+      _selectedGradeId = null;
+      return;
+    }
+    if (_selectedClassroomId != null &&
+        !subjectIn('', _selectedGradeId, _selectedClassroomId)) {
+      _selectedClassroomId = null;
+      _selectedGradeId = null;
+      return;
+    }
+    if (_selectedGradeId != null && !subjectIn('', _selectedGradeId, null)) {
+      _selectedGradeId = null;
+    }
   }
 
   void _clearFilters() {
@@ -359,8 +483,8 @@ class _TeacherStudentsEvaluationContentState
       _selectedSubjectId = null;
       _students = [];
       _selectedStudentIds.clear();
+      _rebuildFilterOptions();
     });
-    _buildClassroomOptions();
   }
 
   void _showError(String message) {
@@ -445,118 +569,177 @@ class _TeacherStudentsEvaluationContentState
   }
 
   Widget _buildFilterCard(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _Strings.filter(context),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: .05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _Strings.filter(context),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (_loadingFilters)
-                  const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else if (_selectedGradeId != null ||
-                    _selectedClassroomId != null ||
-                    _selectedSectionId != null ||
-                    _selectedSubjectId != null)
-                  TextButton.icon(
-                    onPressed: _clearFilters,
-                    icon: const Icon(Icons.clear_all_rounded, size: 18),
-                    label: Text(_Strings.clear(context)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _filterDropdown(
-                  width: 178,
+              ),
+              if (_loadingFilters)
+                const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (_selectedGradeId != null ||
+                  _selectedClassroomId != null ||
+                  _selectedSectionId != null ||
+                  _selectedSubjectId != null)
+                TextButton.icon(
+                  onPressed: _clearFilters,
+                  icon: const Icon(Icons.clear_all_rounded, size: 18),
+                  label: Text(_Strings.clear(context)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _filterDropdown(
                   label: _Strings.selectGrade(context),
                   value: _selectedGradeId,
                   options: _gradeOptions,
                   onChanged: _onGradeChanged,
                 ),
-                _filterDropdown(
-                  width: 178,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _filterDropdown(
                   label: _Strings.selectClassroom(context),
                   value: _selectedClassroomId,
                   options: _classroomOptions,
                   onChanged: _onClassroomChanged,
                   enabled: _selectedGradeId != null,
                 ),
-                _filterDropdown(
-                  width: 148,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _filterDropdown(
                   label: _Strings.selectSection(context),
                   value: _selectedSectionId,
                   options: _sectionOptions,
                   onChanged: _onSectionChanged,
                   enabled: _selectedClassroomId != null,
                 ),
-                _filterDropdown(
-                  width: 210,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _filterDropdown(
                   label: _Strings.selectSubject(context),
                   value: _selectedSubjectId,
                   options: _subjectOptions,
-                  onChanged: (value) => setState(() {
-                    _selectedSubjectId = value;
-                    _students = [];
-                    _selectedStudentIds.clear();
-                  }),
+                  onChanged: _onSubjectChanged,
                 ),
-                FilledButton.icon(
-                  onPressed:
-                      _loadingFilters || _loadingStudents ? null : _loadStudents,
-                  icon: const Icon(Icons.filter_list_rounded),
-                  label: Text(_Strings.apply(context)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed:
+                  _loadingFilters || _loadingStudents ? null : _loadStudents,
+              icon: const Icon(Icons.filter_list, size: 18, color: Colors.white),
+              label: Text(
+                _Strings.apply(context),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _filterDropdown({
-    required double width,
     required String label,
     required String? value,
     required List<FormOption> options,
     required ValueChanged<String?> onChanged,
     bool enabled = true,
   }) {
-    return SizedBox(
-      width: width,
-      child: DropdownButtonFormField<String>(
-        key: ValueKey('${label}_$value'),
-        initialValue: value,
-        isExpanded: true,
-        menuMaxHeight: 280,
-        decoration: InputDecoration(labelText: label),
-        items: [
-          DropdownMenuItem(value: null, child: Text(_Strings.all(context))),
-          for (final option in options)
-            DropdownMenuItem(
-              value: option.value,
-              child: Text(option.label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-        ],
-        onChanged: enabled ? onChanged : null,
+    return DropdownButtonFormField<String>(
+      key: ValueKey('${label}_$value'),
+      initialValue: value,
+      isExpanded: true,
+      menuMaxHeight: 280,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: const Color(0xFFF8F9FA),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 8,
+        ),
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: const TextStyle(
+          fontSize: 10,
+          color: Colors.grey,
+          fontWeight: FontWeight.w600,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+        ),
       ),
+      items: [
+        DropdownMenuItem(value: null, child: Text(_Strings.all(context))),
+        for (final option in options)
+          DropdownMenuItem(
+            value: option.value,
+            child: Text(
+              option.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ),
+      ],
+      onChanged: enabled ? onChanged : null,
     );
   }
 
@@ -585,22 +768,37 @@ class _TeacherStudentsEvaluationContentState
     }
 
     if (_students.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const Icon(Icons.people_outline_rounded, size: 48, color: AppTheme.muted),
-              const SizedBox(height: 12),
-              Text(
-                _selectedSectionId == null && _selectedSubjectId == null
-                    ? _Strings.chooseSubjectAndSection(context)
-                    : _Strings.noStudents(context),
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppTheme.muted),
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withValues(alpha: .05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.group_outlined, size: 48, color: Colors.grey),
+            const SizedBox(height: 12),
+            Text(
+              _selectedSectionId == null && _selectedSubjectId == null
+                  ? _Strings.chooseSubjectAndSection(context)
+                  : _Strings.noStudents(context),
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
               ),
-            ],
-          ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       );
     }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum UserRole { teacher, student, parent }
+enum UserRole { teacher, student, parent, driver }
 
 enum FieldKind {
   text,

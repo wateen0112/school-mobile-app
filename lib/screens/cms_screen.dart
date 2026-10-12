@@ -23,7 +23,10 @@ class CmsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final allResources = [...resourceDefinitions, _attendanceDefinition];
+    final isStudent = (api.appState.userType ?? '').toLowerCase() == 'student';
+    final allResources = isStudent
+        ? studentResourceDefinitions
+        : [...resourceDefinitions, _attendanceDefinition];
     final grouped = <String, List<ResourceDefinition>>{};
     for (final resource in allResources) {
       grouped.putIfAbsent(resource.categoryKey, () => []).add(resource);
@@ -36,15 +39,19 @@ class CmsScreen extends StatelessWidget {
           SoftCard(
             child: Row(
               children: [
-                const CircleAvatar(
-                  backgroundColor: Color(0xffffebe5),
+                CircleAvatar(
+                  backgroundColor: const Color(0xffffebe5),
                   foregroundColor: SchoolColors.secondary,
-                  child: Icon(Icons.admin_panel_settings_rounded),
+                  child: Icon(
+                    isStudent
+                        ? Icons.school_rounded
+                        : Icons.admin_panel_settings_rounded,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    t(context, 'cmsSubtitle'),
+                    t(context, isStudent ? 'studentCmsSubtitle' : 'cmsSubtitle'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),

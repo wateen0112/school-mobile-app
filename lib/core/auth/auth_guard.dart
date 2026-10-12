@@ -11,7 +11,6 @@ class AuthGuard {
   final SessionController session;
 
   static const publicPaths = <String>{
-    '/roles',
     '/login',
     '/register',
     '/forgot-password',

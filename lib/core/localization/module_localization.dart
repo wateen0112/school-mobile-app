@@ -12,6 +12,7 @@ String localizedRoleLabel(BuildContext context, UserRole role) {
     UserRole.teacher => 'المعلم',
     UserRole.student => 'الطالب',
     UserRole.parent => 'ولي الأمر',
+    UserRole.driver => 'السائق',
   };
 }
 
@@ -85,6 +86,9 @@ const _moduleTitlesAr = <String, String>{
   'online-classes': 'الحصص الإلكترونية',
   'settings': 'إعدادات التطبيق',
   'teacher-dashboard': 'لوحة المعلم',
+  'teacher-schedule': 'الجدول الأسبوعي',
+  'teacher-annual-calendar': 'التقويم السنوي',
+  'teacher-my-availability': 'أوقات التوفر والتفضيلات',
   'teacher-sections': 'الأقسام',
   'teacher-students': 'الطلاب',
   'teacher-attendance': 'تقارير الحضور',
@@ -96,12 +100,16 @@ const _moduleTitlesAr = <String, String>{
   'teacher-complaints': 'الشكاوى والملاحظات',
   'teacher-profile': 'الملف الشخصي',
   'student-dashboard': 'لوحة الطالب',
-  'student-exams': 'الاختبارات المتاحة',
+  'student-schedule': 'جدولي الأسبوعي',
+  'student-annual-calendar': 'التقويم السنوي',
+  'student-exams': 'الاختبارات ',
   'student-paper-exam-marks': 'درجات امتحاناتي',
   'student-complaints': 'الشكاوى والملاحظات',
   'student-evaluations': 'تقييماتي',
   'student-profile': 'الملف الشخصي',
-  'parent-dashboard': 'لوحة ولي الأمر',
+  'parent-dashboard': 'لوحة  التحكم',
+  'parent-schedule': 'الجدول الأسبوعي للأبناء',
+  'parent-annual-calendar': 'التقويم السنوي',
   'parent-children': 'أبنائي',
   'parent-attendance': 'تقرير الحضور',
   'parent-paper-exam-marks': 'درجات امتحانات الأبناء',
@@ -109,21 +117,29 @@ const _moduleTitlesAr = <String, String>{
   'parent-evaluations': 'التقييمات',
   'parent-finance': 'التقرير المالي',
   'parent-installments': 'أقساط الأبناء',
+  'parent-reports': 'التقارير الشهرية',
   'parent-profile': 'الملف الشخصي',
   'student-installments': 'أقساطي',
+  'student-reports': 'التقارير الشهرية',
   'installment-plans': 'خطط الأقساط',
+  'teacher-salary': 'راتبي',
+  'driver-home': 'رحلاتي',
+  'driver-trips': 'الجدول الزمني',
+  'parent-transport': 'حافلة أبنائي',
 };
 
 const _routeTitlesAr = <String, String>{
   '/my-installments': 'أقساطي',
   '/installment-detail': 'تفاصيل القسط',
   '/installment-plan-detail': 'تفاصيل خطة الأقساط',
+  '/teacher/salary': 'راتبي',
 };
 
 const _routeTitlesEn = <String, String>{
   '/my-installments': 'My Installments',
   '/installment-detail': 'Installment Detail',
   '/installment-plan-detail': 'Installment Plan Detail',
+  '/teacher/salary': 'My Salary',
 };
 
 const _moduleGoalsAr = <String, String>{
@@ -150,6 +166,9 @@ const _moduleGoalsAr = <String, String>{
   'online-classes': 'جدولة الحصص الإلكترونية وروابط الاجتماعات.',
   'settings': 'ضبط اسم المدرسة والشعار واللغة والسنة الدراسية.',
   'teacher-dashboard': 'ملخص جدول المعلم وروابط الإجراءات السريعة.',
+  'teacher-schedule': 'الجدول الأسبوعي لحصصك حسب القسم.',
+  'teacher-annual-calendar': 'تقويم السنة الدراسية بالأسابيع والأعياد والفترات.',
+  'teacher-my-availability': 'اختر أيام وساعات عملك المفضلة وتفضيلات الجدولة.',
   'teacher-sections': 'عرض الأقسام المسندة وعدد الطلاب.',
   'teacher-students': 'صفِّ طلابك، ثم اختر منهم من تريد تقييمه.',
   'teacher-attendance': 'اختيار القسم والتاريخ ومراجعة الحضور.',
@@ -161,6 +180,8 @@ const _moduleGoalsAr = <String, String>{
   'teacher-paper-exams': 'إنشاء الامتحانات الورقية وإدخال درجات الطلاب.',
   'teacher-complaints': 'إرسال ومتابعة الشكاوى والملاحظات.',
   'student-dashboard': 'ملخص اختبارات الطالب ودرجاته الحديثة.',
+  'student-schedule': 'عرض جدولك الأسبوعي حسب القسم.',
+  'student-annual-calendar': 'تقويم السنة الدراسية بالأسابيع والأعياد والفترات.',
   'student-installments': 'عرض الأقساط المستحقة والمدفوعة للطالب.',
   'student-exams': 'عرض الاختبارات المتاحة والتنقل بين الأسئلة.',
   'student-paper-exam-marks': 'عرض درجات الامتحانات الورقية لكل مادة.',
@@ -168,6 +189,8 @@ const _moduleGoalsAr = <String, String>{
   'student-evaluations': 'عرض تقييماتك الشهرية لكل مادة.',
   'student-profile': 'عرض وتعديل بيانات الطالب وكلمة المرور.',
   'parent-dashboard': 'ملخص الأبناء والتنبيهات الحديثة.',
+  'parent-schedule': 'متابعة الجدول الأسبوعي لحصص أبنائك.',
+  'parent-annual-calendar': 'تقويم السنة الدراسية بالأسابيع والأعياد والفترات.',
   'parent-children': 'عرض بيانات الأبناء الأكاديمية.',
   'parent-attendance': 'متابعة حضور الأبناء بالألوان والحالات.',
   'parent-paper-exam-marks': 'عرض درجات الامتحانات الورقية لأبنائك.',
@@ -177,6 +200,10 @@ const _moduleGoalsAr = <String, String>{
   'parent-installments': 'متابعة أقساط الرسوم لجميع الأبناء المرتبطين.',
   'parent-profile': 'عرض وتعديل بيانات ولي الأمر وكلمة المرور.',
   'installment-plans': 'إدارة خطط الأقساط النشطة وجدول الدفعات.',
+  'teacher-salary': 'تتبع راتبك الأساسي ودفعات الرواتب المستحقة والمدفوعة.',
+  'driver-home': 'حافلتك المخصصة ورحلات اليوم مع زر بدء بنقرة واحدة.',
+  'driver-trips': 'الرحلات القادمة المجدولة خلال الأسبوع.',
+  'parent-transport': 'تابع حافلة أبنائك مباشرة: حالة الرحلة وإشعارات الاستلام والتوصيل وموقع الحافلة.',
 };
 
 const _groupsAr = <String, String>{
@@ -196,9 +223,14 @@ const _groupsAr = <String, String>{
   'Settings': 'الإعدادات',
   'General': 'عام',
   'Finance': 'المالية',
+  'Driver': 'السائق',
+  'Transportation': 'المواصلات',
 };
 
 const _columnsAr = <String, String>{
+  'Time': 'الوقت',
+  'Route': 'الخط',
+  'Bus': 'الحافلة',
   'Metric': 'المؤشر',
   'Value': 'القيمة',
   'Trend': 'الاتجاه',
@@ -240,6 +272,12 @@ const _columnsAr = <String, String>{
   'Field': 'الحقل',
   'Alert': 'التنبيه',
   'Child': 'الابن',
+  'Question': 'السؤال',
+  'Type': 'النوع',
+  'Quiz': 'الاختبار',
+  'Answer': 'الإجابة',
+  'Answers': 'الإجابات',
+  'Score': 'الدرجة',
 };
 
 const _fieldsAr = <String, String>{

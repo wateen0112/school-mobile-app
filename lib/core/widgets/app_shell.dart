@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:chucker_flutter/chucker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -36,16 +38,17 @@ class AppShell extends StatelessWidget {
             backgroundColor: Colors.transparent,
             extendBody: true,
             appBar: AppBar(
-              toolbarHeight: 72,
+              toolbarHeight: 64,
               automaticallyImplyLeading: false,
               leading: Builder(
-                builder: (context) => IconButton(
+                builder: (context) => _ShellIconButton(
                   onPressed: () => Scaffold.of(context).openDrawer(),
-                  icon: const Icon(Icons.menu_rounded),
-                  tooltip: appIsArabic(context) ? 'فتح القائمة' : 'Open menu',
+                  icon: Icons.menu_rounded,
+                  tooltip: appIsArabic(context)
+                      ? 'فتح القائمة'
+                      : 'Open menu',
                 ),
               ),
-              title: _PageTitle(path: currentPath),
               actions: [
                 _NotificationDropdown(session: session),
                 PopupMenuButton<String>(
@@ -73,7 +76,7 @@ class AppShell extends StatelessWidget {
                     }
                     if (value == 'logout') {
                       session.logout().then((_) {
-                        if (context.mounted) context.go('/roles');
+                        if (context.mounted) context.go('/login');
                       });
                     }
                   },
@@ -82,26 +85,7 @@ class AppShell extends StatelessWidget {
                       value: 'profile',
                       child: Text(t(context, 'profile')),
                     ),
-                    PopupMenuItem(
-                      value: 'toggleChucker',
-                      child: Row(
-                        children: [
-                          Icon(
-                            session.showChucker
-                                ? Icons.bug_report_rounded
-                                : Icons.bug_report_outlined,
-                            color: session.showChucker ? AppTheme.coral : AppTheme.muted,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            session.showChucker
-                                ? 'Disable API Inspector'
-                                : 'Enable API Inspector',
-                          ),
-                        ],
-                      ),
-                    ),
+
                     if (session.showChucker)
                       PopupMenuItem(
                         value: 'apiInspector',
@@ -249,9 +233,7 @@ class _NotificationDropdownState extends State<_NotificationDropdown> {
         onTap: _closeDropdown,
         child: Stack(
           children: [
-            Positioned.fill(
-              child: Container(color: Colors.transparent),
-            ),
+            Positioned.fill(child: Container(color: Colors.transparent)),
             Positioned(
               left: left,
               top: position.dy + size.height + 8,
@@ -276,13 +258,15 @@ class _NotificationDropdownState extends State<_NotificationDropdown> {
   Widget build(BuildContext context) {
     return Badge(
       label: widget.session.unreadNotificationCount > 0
-          ? Text('${widget.session.unreadNotificationCount > 99 ? '99+' : widget.session.unreadNotificationCount}')
+          ? Text(
+              '${widget.session.unreadNotificationCount > 99 ? '99+' : widget.session.unreadNotificationCount}',
+            )
           : null,
       backgroundColor: AppTheme.coral,
       child: _ShellIconButton(
         onPressed: _toggleDropdown,
         icon: Icons.notifications_rounded,
-        tooltip: 'Notifications',
+        tooltip: appIsArabic(context) ? 'الإشعارات' : 'Notifications',
       ),
     );
   }
@@ -338,7 +322,10 @@ class _RoleDrawer extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(12),
               child: ListTile(
-                leading: const Icon(Icons.logout_rounded, color: AppTheme.coral),
+                leading: const Icon(
+                  Icons.logout_rounded,
+                  color: AppTheme.coral,
+                ),
                 title: Text(
                   t(context, 'logout'),
                   style: const TextStyle(
@@ -346,11 +333,13 @@ class _RoleDrawer extends StatelessWidget {
                     color: AppTheme.coral,
                   ),
                 ),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 onTap: () {
                   Navigator.of(context).pop();
                   session.logout().then((_) {
-                    if (context.mounted) context.go('/roles');
+                    if (context.mounted) context.go('/login');
                   });
                 },
               ),
@@ -409,76 +398,52 @@ class _FloatingBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const barHeight = 58.0;
-    const activeSize = 58.0;
     if (items.isEmpty) return const SizedBox.shrink();
     final safeSelectedIndex = selectedIndex.clamp(0, items.length - 1);
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 86,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 18, 22, 10),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final count = items.length;
-                final slotWidth = constraints.maxWidth / count;
-                final selectedLeft =
-                    (slotWidth * safeSelectedIndex) +
-                    (slotWidth - activeSize) / 2;
-                final barTop = constraints.maxHeight - barHeight;
-                final selectedTop = barTop - (activeSize / 2);
 
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        height: barHeight,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.ink.withValues(alpha: .13),
-                              blurRadius: 24,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          textDirection: TextDirection.ltr,
-                          children: [
-                            for (var index = 0; index < items.length; index++)
-                              Expanded(
-                                child: _BottomBarItem(
-                                  item: items[index],
-                                  selected: index == selectedIndex,
-                                  onTap: () => onTap(index),
-                                ),
-                              ),
-                          ],
-                        ),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .95),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: const Color(0xCCE2E8F0),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x14000000),
+                    blurRadius: 30,
+                    spreadRadius: -5,
+                    offset: Offset(0, 10),
+                  ),
+                  BoxShadow(
+                    color: Color(0x0A000000),
+                    blurRadius: 12,
+                    spreadRadius: -2,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  for (var i = 0; i < items.length; i++)
+                    Expanded(
+                      child: _BottomBarItem(
+                        item: items[i],
+                        selected: i == safeSelectedIndex,
+                        onTap: () => onTap(i),
                       ),
                     ),
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 240),
-                      curve: Curves.easeOutCubic,
-                      left: selectedLeft,
-                      top: selectedTop,
-                      child: _RaisedBottomAction(
-                        item: items[safeSelectedIndex],
-                        onTap: () => onTap(safeSelectedIndex),
-                      ),
-                    ),
-                  ],
-                );
-              },
+                ],
+              ),
             ),
           ),
         ),
@@ -487,7 +452,7 @@ class _FloatingBottomBar extends StatelessWidget {
   }
 }
 
-class _BottomBarItem extends StatelessWidget {
+class _BottomBarItem extends StatefulWidget {
   const _BottomBarItem({
     required this.item,
     required this.selected,
@@ -499,65 +464,93 @@ class _BottomBarItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final label = localizedNavLabel(context, item);
-    return Tooltip(
-      message: label,
-      child: IgnorePointer(
-        ignoring: selected,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: Semantics(
-            button: true,
-            selected: selected,
-            label: label,
-            child: Center(
-              child: Opacity(
-                opacity: selected ? 0 : 1,
-                child: Icon(
-                  item.icon,
-                  color: const Color(0xffb8bfd2),
-                  size: 25,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  State<_BottomBarItem> createState() => _BottomBarItemState();
 }
 
-class _RaisedBottomAction extends StatelessWidget {
-  const _RaisedBottomAction({required this.item, required this.onTap});
+class _BottomBarItemState extends State<_BottomBarItem> {
+  bool _pressed = false;
 
-  final NavItem item;
-  final VoidCallback onTap;
+  void _setPressed(bool v) {
+    if (_pressed != v) setState(() => _pressed = v);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final label = localizedNavLabel(context, item);
-    return Tooltip(
-      message: label,
+    final label = localizedNavLabel(context, widget.item);
+    final selected = widget.selected;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
       child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 58,
-          height: 58,
-          decoration: BoxDecoration(
-            gradient: AppTheme.ctaGradient,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppTheme.surface, width: 4),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.coral.withValues(alpha: .30),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _pressed ? .95 : 1,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.symmetric(
+              vertical: 10,
+              horizontal: selected ? 16 : 12,
+            ),
+            decoration: BoxDecoration(
+              gradient: selected
+                  ? const LinearGradient(
+                      colors: [Color(0xFFF97316), Color(0xFFF59E0B)],
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: selected
+                  ? const [
+                      BoxShadow(
+                        color: Color(0x40F97316),
+                        blurRadius: 6,
+                        spreadRadius: -1,
+                        offset: Offset(0, 4),
+                      ),
+                      BoxShadow(
+                        color: Color(0x40F97316),
+                        blurRadius: 4,
+                        spreadRadius: -2,
+                        offset: Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  widget.item.icon,
+                  size: 20,
+                  color: selected ? Colors.white : const Color(0xFF94A3B8),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: selected
+                          ? Colors.white
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: Icon(item.icon, color: Colors.white, size: 24),
         ),
       ),
     );
@@ -575,7 +568,7 @@ class _ShellIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
 
-  @override
+@override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -583,30 +576,19 @@ class _ShellIconButton extends StatelessWidget {
         onPressed: onPressed,
         icon: Icon(icon),
         tooltip: tooltip,
+        constraints: const BoxConstraints.tightFor(
+          width: 44,
+          height: 44,
+        ),
+        padding: EdgeInsets.zero,
         style: IconButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: AppTheme.primary,
           shadowColor: AppTheme.primary.withValues(alpha: .12),
           elevation: 4,
+          shape: const CircleBorder(),
         ),
       ),
-    );
-  }
-}
-
-class _PageTitle extends StatelessWidget {
-  const _PageTitle({required this.path});
-
-  final String path;
-
-  @override
-  Widget build(BuildContext context) {
-    final current = localizedPageTitle(context, path);
-    return Text(
-      current,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: const TextStyle(fontWeight: FontWeight.w900),
     );
   }
 }

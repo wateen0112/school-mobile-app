@@ -381,3 +381,46 @@ const resourceDefinitions = <ResourceDefinition>[
 ResourceDefinition resourceByKey(String key) {
   return resourceDefinitions.firstWhere((resource) => resource.key == key);
 }
+
+const studentResourceDefinitions = <ResourceDefinition>[
+  ResourceDefinition(
+    key: 'mySchedule',
+    titleKey: 'mySchedule',
+    endpoint: '/student/schedule',
+    icon: Icons.calendar_month_rounded,
+    categoryKey: 'studentPortal',
+    subtitleKeys: ['day_name', 'start_time', 'end_time', 'subject_name'],
+    canWrite: false,
+    fields: [],
+  ),
+  ResourceDefinition(
+    key: 'myGrades',
+    titleKey: 'myGrades',
+    endpoint: '/student/grades',
+    icon: Icons.grade_rounded,
+    categoryKey: 'studentPortal',
+    subtitleKeys: ['subject_name', 'percentage'],
+    canWrite: false,
+    fields: [],
+  ),
+  ResourceDefinition(
+    key: 'myAttendance',
+    titleKey: 'myAttendance',
+    endpoint: '/student/attendance',
+    icon: Icons.fact_check_rounded,
+    categoryKey: 'studentPortal',
+    subtitleKeys: ['date', 'status'],
+    canWrite: false,
+    fields: [],
+  ),
+  ResourceDefinition(
+    key: 'myExams',
+    titleKey: 'myExams',
+    endpoint: '/student/exams',
+    icon: Icons.assignment_rounded,
+    categoryKey: 'studentPortal',
+    subtitleKeys: ['subject', 'status', 'score'],
+    canWrite: false,
+    fields: [],
+  ),
+];

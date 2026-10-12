@@ -16,9 +16,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _baseUrl = TextEditingController(
-    text: widget.appState.baseUrl,
-  );
   final _email = TextEditingController(text: 'admin@example.com');
   final _password = TextEditingController(text: 'password123');
   bool _loading = false;
@@ -26,7 +23,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _baseUrl.dispose();
     _email.dispose();
     _password.dispose();
     super.dispose();
@@ -39,7 +35,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      await widget.appState.setBaseUrl(_baseUrl.text);
       await SchoolApiClient(
         appState: widget.appState,
       ).login(_email.text, _password.text);
@@ -100,18 +95,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.w900),
                       ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _baseUrl,
-                        decoration: InputDecoration(
-                          labelText: t(context, 'apiBaseUrl'),
-                          prefixIcon: const Icon(Icons.link_rounded),
-                        ),
-                        validator: (value) => value == null || value.isEmpty
-                            ? t(context, 'apiBaseUrl')
-                            : null,
+                      const SizedBox(height: 8),
+                      Text(
+                        t(context, 'welcomeBack'),
+                        style: Theme.of(context).textTheme.bodyLarge
+                            ?.copyWith(color: Colors.grey[600]),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: _email,
                         keyboardType: TextInputType.emailAddress,
@@ -145,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 20),
                       GradientButton(
                         label: t(context, 'login'),
-                        icon: Icons.arrow_forward_rounded,
+                        icon: Icons.arrow_back_rounded,
                         onPressed: _loading ? null : _login,
                       ),
                     ],

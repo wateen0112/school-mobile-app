@@ -46,6 +46,11 @@ class ApiService {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           dio.options.baseUrl = _storage.baseUrl;
+          final lang = ErrorLocale.isArabic ? 'ar' : 'en';
+          options.queryParameters['locale'] = lang;
+          options.headers['lang'] = lang;
+          options.headers['X-Locale'] = lang;
+          options.headers['Accept-Language'] = lang;
           final token = _storage.token;
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';

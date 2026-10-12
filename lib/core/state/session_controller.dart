@@ -6,6 +6,8 @@ import '../localization/error_messages.dart';
 import '../models/app_models.dart';
 import '../network/api_service.dart';
 import '../network/auth_service.dart';
+import '../../features/transportation/services/driver_location_foreground_service.dart';
+import '../../features/transportation/services/gps_queue_store.dart';
 import '../network/auth_storage.dart';
 import '../network/background_notification_service.dart';
 import '../network/foreground_notification_poller.dart';
@@ -35,9 +37,8 @@ class SessionController extends ChangeNotifier {
       interval: const Duration(seconds: 30),
     );
     _restoreFromStorage();
-    authStatus = _hasStoredToken
-        ? AuthStatus.authenticated
-        : AuthStatus.unauthenticated;
+    // Keep bootstrapping until bootstrap() is explicitly called
+    // This allows the splash screen to show during initial load
   }
 
   static const _chuckerKey = 'show_chucker';
@@ -67,10 +68,11 @@ class SessionController extends ChangeNotifier {
     return token != null && token.isNotEmpty;
   }
 
-  UserRole get currentRole => user?.role ?? authStorage.role ?? UserRole.teacher;
+  UserRole get currentRole =>
+      user?.role ?? authStorage.role ?? UserRole.teacher;
   bool get isRtl => locale.languageCode == 'ar';
   String get homeRoute =>
-      isAuthenticated ? defaultRouteForRole(currentRole) : '/roles';
+      isAuthenticated ? defaultRouteForRole(currentRole) : '/login';
 
   Future<void> bootstrap() async {
     if (!_hasStoredToken) {
@@ -130,6 +132,7 @@ class SessionController extends ChangeNotifier {
   Future<void> login({
     required String email,
     required String password,
+    String? type,
   }) async {
     authBusy = true;
     notifyListeners();
@@ -137,6 +140,7 @@ class SessionController extends ChangeNotifier {
       final session = await auth.login(
         email: email,
         password: password,
+        type: type,
       );
       _hasStoredToken = true;
       user = AppUser(
@@ -148,7 +152,6 @@ class SessionController extends ChangeNotifier {
       );
       await _persistUser(user!);
       authStatus = AuthStatus.authenticated;
-      _notifyRouterRefresh();
       refreshUnreadCount();
       // Start FCM notification service
       await BackgroundNotificationService.startPolling();
@@ -171,11 +174,18 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await _clearLocalSession();
+    // Set unauthenticated status immediately so the UI updates right away
+    user = null;
+    _hasStoredToken = false;
     unreadNotificationCount = 0;
     authStatus = AuthStatus.unauthenticated;
     notifyListeners();
     _notifyRouterRefresh();
+
+    // Perform cleanup operations in the background
+    Future.microtask(() async {
+      await _clearLocalSession();
+    });
   }
 
   Future<void> sessionExpired() async {
@@ -227,10 +237,11 @@ class SessionController extends ChangeNotifier {
 
   void _restoreFromStorage() {
     final savedLocale = _prefs.getString('locale');
-    locale = Locale(savedLocale ?? 'en');
+    locale = Locale(savedLocale ?? 'ar');
     ErrorLocale.languageCode = locale.languageCode;
     showChucker = _prefs.getBool(_chuckerKey) ?? false;
 
+    // Restore _hasStoredToken from auth storage
     _hasStoredToken = _hasValidToken;
     if (!_hasStoredToken) return;
 
@@ -265,16 +276,30 @@ class SessionController extends ChangeNotifier {
   Future<void> _clearLocalSession() async {
     user = null;
     _hasStoredToken = false;
-    await auth.logout();
+
+    // Stop any active driver-trip tracking (the foreground service would
+    // otherwise keep posting with a token that is about to die).
+    try {
+      await DriverLocationForegroundService.stop();
+      await ActiveTripStore.clear();
+    } catch (_) {
+      // Best-effort cleanup — never block logout.
+    }
+
+    // Clear local storage first (synchronous operations)
     await _prefs.remove('user_id');
     await _prefs.remove('name');
     await _prefs.remove('email');
     await _prefs.remove('role');
+
+    // Clear auth token (this may involve network calls, but auth.logout handles it)
+    await auth.logout();
+
     // Delete FCM token
     await deleteFcmToken();
-    // Stop foreground polling
+
+    // Stop polling services
     _foregroundPoller.stop();
-    // Stop background polling and clear seen notifications
     await BackgroundNotificationService.stopPolling();
     await BackgroundNotificationService.clearLastSeen();
   }

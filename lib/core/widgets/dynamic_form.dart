@@ -12,6 +12,8 @@ class DynamicModuleForm extends StatefulWidget {
     this.topPadding = 0,
     this.initialValues,
     this.fieldOptions = const {},
+    this.hiddenFields = const {},
+    this.hiddenValues = const {},
   });
 
   final ModuleSpec module;
@@ -20,6 +22,8 @@ class DynamicModuleForm extends StatefulWidget {
   final double topPadding;
   final Map<String, dynamic>? initialValues;
   final Map<String, List<FormOption>> fieldOptions;
+  final Set<String> hiddenFields;
+  final Map<String, dynamic> hiddenValues;
 
   @override
   State<DynamicModuleForm> createState() => _DynamicModuleFormState();
@@ -73,15 +77,17 @@ class _DynamicModuleFormState extends State<DynamicModuleForm> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (final field in widget.module.fields) ...[
-                _FieldInput(
-                  field: field,
-                  options: _optionsFor(field),
-                  controller: _controllers[field.name],
-                  value: _selectValues[field.name],
-                  onChanged: (value) =>
-                      setState(() => _selectValues[field.name] = value),
-                ),
-                const SizedBox(height: 12),
+                if (!widget.hiddenFields.contains(field.name)) ...[
+                  _FieldInput(
+                    field: field,
+                    options: _optionsFor(field),
+                    controller: _controllers[field.name],
+                    value: _selectValues[field.name],
+                    onChanged: (value) =>
+                        setState(() => _selectValues[field.name] = value),
+                  ),
+                  const SizedBox(height: 12),
+                ],
               ],
               FilledButton.icon(
                 onPressed: _submitting
@@ -113,7 +119,7 @@ class _DynamicModuleFormState extends State<DynamicModuleForm> {
   }
 
   Map<String, dynamic> get _values {
-    return {
+    final values = <String, dynamic>{
       for (final entry in _controllers.entries)
         entry.key: entry.value.text.trim(),
       for (final entry in _selectValues.entries)
@@ -122,6 +128,10 @@ class _DynamicModuleFormState extends State<DynamicModuleForm> {
             : entry.value != null)
           entry.key: entry.value,
     };
+    for (final entry in widget.hiddenValues.entries) {
+      values[entry.key] = entry.value;
+    }
+    return values;
   }
 
   String? _initialValue(FormFieldSpec field) {

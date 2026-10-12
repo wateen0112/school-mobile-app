@@ -20,7 +20,8 @@ import '../../features/installments/domain/models/my_installment_model.dart';
 import '../state/session_controller.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_shell.dart';
-import '../../widgets/shared_widgets.dart';
+import '../../features/transportation/presentation/driver/driver_trip_screen.dart';
+import '../../features/transportation/presentation/parent/parent_trip_screen.dart';
 
 GoRouter createRouter(
   SessionController session, {
@@ -43,24 +44,28 @@ GoRouter createRouter(
   return GoRouter(
     navigatorKey: navigatorKey,
     refreshListenable: session.routerRefresh,
-    initialLocation: session.isAuthenticated ? session.homeRoute : '/roles',
+    initialLocation: session.isAuthenticated ? session.homeRoute : '/login',
     redirect: (context, state) => guard.redirect(state),
-    errorBuilder: (context, state) => Scaffold(
-      backgroundColor: AppTheme.surface,
-      appBar: AppBar(title: Text(t(context, 'navError'))),
-      body: Center(
-        child: Text(state.error?.toString() ?? 'Unknown route: ${state.uri}'),
-      ),
-    ),
+    errorBuilder: (context, state) {
+      // Transient mismatch can occur while the router is being rebuilt
+      // around an auth change (the old route table predates the new role's
+      // routes). Never surface a navigation error to the user — resolve to
+      // the user's home route instead.
+      final home = session.homeRoute;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        if (state.uri.path != home) context.go(home);
+      });
+      return Scaffold(
+        backgroundColor: AppTheme.surface,
+        body: const SizedBox.shrink(),
+      );
+    },
     routes: [
       GoRoute(
         path: '/',
         redirect: (context, state) =>
             session.isAuthenticated ? session.homeRoute : '/login',
-      ),
-      GoRoute(
-        path: '/roles',
-        redirect: (context, state) => '/login',
       ),
       GoRoute(
         path: '/login',
@@ -132,6 +137,20 @@ GoRouter createRouter(
               ),
             ),
             GoRoute(
+              path: '/driver/active-trip',
+              pageBuilder: (context, state) => MaterialPage(
+                key: state.pageKey,
+                child: DriverTripScreen(tripId: state.extra as int),
+              ),
+            ),
+            GoRoute(
+              path: '/parent/transport-trip',
+              pageBuilder: (context, state) => MaterialPage(
+                key: state.pageKey,
+                child: ParentTripScreen(studentId: state.extra as int),
+              ),
+            ),
+            GoRoute(
               path: '/my-installments',
               pageBuilder: (context, state) => MaterialPage(
                 key: state.pageKey,
@@ -139,6 +158,14 @@ GoRouter createRouter(
                   studentInstallmentId: state.extra as int?,
                 ),
               ),
+            ),
+            GoRoute(
+              path: '/schedule',
+              redirect: (context, state) {
+                final module =
+                    moduleByKey('${session.currentRole.name}-schedule');
+                return module?.route ?? session.homeRoute;
+              },
             ),
             GoRoute(
               path: '/installment-detail',

@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -24,14 +23,24 @@ import '../../widgets/shared_widgets.dart';
 import '../exams/exams_list_screen.dart';
 import '../installments/presentation/screens/installment_plans_screen.dart';
 import '../installments/presentation/screens/my_installments_screen.dart';
+import '../salary/presentation/screens/my_salary_screen.dart';
 import '../profile/profile_screen.dart';
 import '../teacher/teacher_students_evaluation_content.dart';
 import '../paper_exams/teacher_paper_exams_content.dart';
 import '../paper_exams/student_marks_content.dart';
 import '../complaints/complaints_content.dart';
 import '../parent/parent_children_content.dart';
+import '../schedule/presentation/screens/schedule_screen.dart';
+import '../transportation/presentation/driver/driver_home_content.dart';
+import '../transportation/presentation/driver/driver_schedule_content.dart';
+import '../transportation/presentation/parent/parent_transport_content.dart';
+import '../schedule/presentation/screens/academic_calendar_screen.dart';
+import '../schedule/presentation/screens/my_availability_screen.dart';
 import 'evaluation_content.dart';
 import 'module_view_model.dart';
+import 'parent_finance_content.dart';
+import 'role_dashboard_content.dart';
+import 'student_reports_content.dart';
 
 class ModuleScreen extends StatelessWidget {
   const ModuleScreen({super.key, required this.module});
@@ -44,6 +53,10 @@ class ModuleScreen extends StatelessWidget {
       return const MyInstallmentsScreen();
     }
 
+    if (module.specialView == 'teacherSalary') {
+      return const MySalaryScreen();
+    }
+
     if (module.specialView == 'examFlow') {
       return const ExamsListScreen();
     }
@@ -52,11 +65,38 @@ class ModuleScreen extends StatelessWidget {
       return const InstallmentPlansScreen();
     }
 
+    if (module.specialView == 'schedule') {
+      return const ScheduleScreen();
+    }
+
+    if (module.specialView == 'academicCalendar') {
+      return const AcademicCalendarScreen();
+    }
+
+    if (module.specialView == 'myAvailability') {
+      return const MyAvailabilityScreen();
+    }
+
+    if (module.specialView == 'driverHome') {
+      return const DriverHomeContent();
+    }
+
+    if (module.specialView == 'driverSchedule') {
+      return const DriverScheduleContent();
+    }
+
+    if (module.specialView == 'parentTransport') {
+      return const ParentTransportContent();
+    }
+
     return ChangeNotifierProvider(
       key: ValueKey(module.route),
       create: (context) => ModuleViewModel(
         module: module,
         repository: SchoolRepository(context.read<SessionController>().api),
+        teacherScoped:
+            module.key == 'students' &&
+            context.read<SessionController>().currentRole == UserRole.teacher,
       ),
       child: Consumer<ModuleViewModel>(
         builder: (context, viewModel, _) {
@@ -76,48 +116,52 @@ class ModuleScreen extends StatelessWidget {
               ),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
               children: [
-              if (module.specialView != 'profile') _ModuleHeader(module: module),
-              if (module.key == 'students') ...[
-                const SizedBox(height: 14),
-                _StudentApiFilters(
-                  viewModel: viewModel,
-                  languageCode: languageCode,
-                ),
-              ],
-              const SizedBox(height: 16),
-              if (viewModel.loading)
-                const LoadingShimmer()
-              else if (viewModel.error != null)
-                Card(
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.error_outline_rounded,
-                      color: AppTheme.coral,
-                    ),
-                    title: Text(viewModel.error!),
-                    trailing: IconButton(
-                      onPressed: viewModel.load,
-                      icon: const Icon(Icons.refresh_rounded),
-                    ),
+                if (module.specialView != 'profile' &&
+                    module.specialView != 'studentReports' &&
+                    module.specialView != 'studentDashboard' &&
+                    module.specialView != 'teacherDashboard')
+                  _ModuleHeader(module: module),
+                if (module.key == 'students') ...[
+                  const SizedBox(height: 14),
+                  _StudentApiFilters(
+                    viewModel: viewModel,
+                    languageCode: languageCode,
                   ),
-                )
-              else if (viewModel.empty)
-                IllustratedEmptyState(
-                  title: appIsArabic(context)
-                      ? 'لا توجد بيانات في ${localizedModuleTitle(context, module)}'
-                      : 'No ${localizedModuleTitle(context, module)}',
-                  message: appIsArabic(context)
-                      ? 'أنشئ أول سجل أو عدل عوامل التصفية.'
-                      : 'Create the first record or adjust your filters.',
-                  actionLabel: t(context, 'create'),
-                  onAction: () => _openForm(context, module),
-                )
-              else
-_SpecialOrTable(module: module, viewModel: viewModel),
                 ],
-              ),
-            );
-          },
+                const SizedBox(height: 16),
+                if (viewModel.loading)
+                  const LoadingShimmer()
+                else if (viewModel.error != null)
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.error_outline_rounded,
+                        color: AppTheme.coral,
+                      ),
+                      title: Text(viewModel.error!),
+                      trailing: IconButton(
+                        onPressed: viewModel.load,
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ),
+                  )
+                else if (viewModel.empty)
+                  IllustratedEmptyState(
+                    title: appIsArabic(context)
+                        ? 'لا توجد بيانات في ${localizedModuleTitle(context, module)}'
+                        : 'No ${localizedModuleTitle(context, module)}',
+                    message: appIsArabic(context)
+                        ? 'أنشئ أول سجل أو عدل عوامل التصفية.'
+                        : 'Create the first record or adjust your filters.',
+                    actionLabel: t(context, 'create'),
+                    onAction: () => _openForm(context, module),
+                  )
+                else
+                  _SpecialOrTable(module: module, viewModel: viewModel),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -129,6 +173,17 @@ _SpecialOrTable(module: module, viewModel: viewModel),
   }) {
     final viewModel = context.read<ModuleViewModel>();
     final optionsFuture = viewModel.formOptions(context);
+
+    final isTeacherOwned = module.key == 'teacher-quizzes';
+    final session = context.read<SessionController>();
+    final teacherId = session.authStorage.user?['id'] as int?;
+    final hiddenFields = isTeacherOwned && teacherId != null
+        ? const <String>{'teacher'}
+        : const <String>{};
+    final hiddenValues = isTeacherOwned && teacherId != null
+        ? <String, dynamic>{'teacher': '$teacherId'}
+        : const <String, dynamic>{};
+
     showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
@@ -178,7 +233,12 @@ _SpecialOrTable(module: module, viewModel: viewModel),
                           else if (hasError)
                             Card(
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 68, 16, 24),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  68,
+                                  16,
+                                  24,
+                                ),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -192,23 +252,33 @@ _SpecialOrTable(module: module, viewModel: viewModel),
                                       appIsArabic(context)
                                           ? 'فشل تحميل الخيارات'
                                           : 'Failed to load options',
-                                      style: Theme.of(context).textTheme.titleMedium,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
                                       translateServerError('${snapshot.error}'),
                                       textAlign: TextAlign.center,
-                                      style: Theme.of(context).textTheme.bodySmall,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
                                     ),
                                     const SizedBox(height: 16),
                                     FilledButton.icon(
                                       onPressed: () {
                                         Navigator.pop(context);
-                                        _openForm(context, module, record: record);
+                                        _openForm(
+                                          context,
+                                          module,
+                                          record: record,
+                                        );
                                       },
                                       icon: const Icon(Icons.refresh_rounded),
                                       label: Text(
-                                        appIsArabic(context) ? 'إعادة المحاولة' : 'Retry',
+                                        appIsArabic(context)
+                                            ? 'إعادة المحاولة'
+                                            : 'Retry',
                                       ),
                                     ),
                                   ],
@@ -220,6 +290,8 @@ _SpecialOrTable(module: module, viewModel: viewModel),
                               module: module,
                               initialValues: record?.raw,
                               fieldOptions: fieldOptions,
+                              hiddenFields: hiddenFields,
+                              hiddenValues: hiddenValues,
                               submitLabel:
                                   '${t(context, 'save')} ${localizedModuleTitle(context, module)}',
                               topPadding: 52,
@@ -377,49 +449,56 @@ class _ModuleHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 62,
-              height: 62,
-              decoration: BoxDecoration(
-                gradient: AppTheme.promoGradient,
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primary.withValues(alpha: .18),
-                    blurRadius: 18,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Icon(module.icon, color: Colors.white, size: 30),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    localizedModuleTitle(context, module),
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    localizedModuleGoal(context, module),
-                    style: const TextStyle(color: AppTheme.muted),
-                  ),
-                ],
-              ),
-            ),
-          ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E3C72), Color(0xFF2A52BE)],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
         ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1E3C72).withValues(alpha: .3),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  localizedModuleTitle(context, module),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(module.icon, color: Colors.white, size: 24),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            localizedModuleGoal(context, module),
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ],
       ),
     );
   }
@@ -435,15 +514,24 @@ class _SpecialOrTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (module.specialView) {
       'dashboard' => AdminDashboardContent(data: viewModel.dashboardData),
-      'teacherDashboard' => const TeacherDashboardContent(),
-      'studentDashboard' => const StudentDashboardContent(),
-      'parentDashboard' => const ParentDashboardContent(),
+      'teacherDashboard' => const RoleDashboard(
+        endpoint: '/teacher/dashboard',
+        builder: teacherDashboardBuilder,
+      ),
+      'studentDashboard' => const RoleDashboard(
+        endpoint: '/student/dashboard',
+        builder: studentDashboardBuilder,
+      ),
+      'parentDashboard' => const RoleDashboard(
+        endpoint: '/parent/dashboard',
+        builder: parentDashboardBuilder,
+      ),
       'attendance' => const AttendanceContent(),
       'attendanceHistory' => const AttendanceHistoryContent(),
       'parentAttendance' => ParentAttendanceContent(viewModel: viewModel),
       'parentChildren' => ParentChildrenContent(records: viewModel.records),
       'examFlow' => const ExamsListScreen(),
-      'financeTabs' => const FinanceTabsContent(),
+      'financeTabs' => const ParentFinanceContent(),
       'parentWizard' => WizardContent(moduleTitle: 'Parent wizard'),
       'studentForm' => WizardContent(moduleTitle: 'Student multi-step form'),
       'bulkAction' => BulkActionContent(
@@ -470,8 +558,11 @@ class _SpecialOrTable extends StatelessWidget {
       'parentComplaints' => const ComplaintsContent(),
       'parentEvaluations' => const ParentEvaluationsContent(),
       'studentEvaluations' => const StudentEvaluationsContent(),
+      'studentReports' => const StudentReportsContent(),
       'myInstallments' => const MyInstallmentsScreen(),
       'installmentPlans' => const InstallmentPlansScreen(),
+      'teacherSalary' => const MySalaryScreen(),
+      'schedule' => const ScheduleScreen(),
       'profile' => const ProfileScreen(),
       _ => SchoolDataTable(
         module: module,
@@ -896,91 +987,6 @@ class AdminDashboardContent extends StatelessWidget {
   }
 }
 
-class TeacherDashboardContent extends StatelessWidget {
-  const TeacherDashboardContent({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _WelcomeCard(
-          title: appIsArabic(context)
-              ? 'مرحباً أيها المعلم'
-              : 'Welcome, Teacher',
-          subtitle: appIsArabic(context)
-              ? 'لديك اليوم 4 أقسام واختباران للمراجعة.'
-              : 'Today you have 4 sections and 2 quizzes to review.',
-        ),
-        const SizedBox(height: 12),
-        _ScheduleCard(
-          actions: [
-            _DashboardAction(
-              label: appIsArabic(context) ? 'تسجيل الحضور' : 'Mark attendance',
-              moduleKey: 'teacher-attendance',
-            ),
-            _DashboardAction(
-              label: appIsArabic(context) ? 'إنشاء اختبار' : 'Create quiz',
-              moduleKey: 'teacher-quizzes',
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class StudentDashboardContent extends StatelessWidget {
-  const StudentDashboardContent({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _WelcomeCard(
-          title: appIsArabic(context) ? 'مرحباً بعودتك' : 'Welcome back',
-          subtitle: appIsArabic(context)
-              ? 'لديك 3 اختبارات قادمة هذا الأسبوع.'
-              : 'You have 3 upcoming exams this week.',
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: const _SoftIcon(icon: Icons.grade_rounded),
-            title: Text(t(context, 'recentGrades')),
-            subtitle: Text(t(context, 'recentGradesDesc')),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class ParentDashboardContent extends StatelessWidget {
-  const ParentDashboardContent({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _WelcomeCard(
-          title: appIsArabic(context) ? 'ملخص الأبناء' : 'Children summary',
-          subtitle: appIsArabic(context)
-              ? 'أحمد: الصف الخامس / القسم أ\nلانا: الصف الثاني / القسم ب'
-              : 'Ahmed: Grade 5 / Section A\nLana: Grade 2 / Section B',
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: const _SoftIcon(icon: Icons.notifications_rounded),
-            title: Text(t(context, 'recentAlert')),
-            subtitle: Text(t(context, 'recentAlertDesc')),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class AttendanceContent extends StatefulWidget {
   const AttendanceContent({super.key});
 
@@ -1134,83 +1140,216 @@ class _AttendanceContentState extends State<AttendanceContent> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              children: [
-                DropdownButtonFormField<String>(
-                  key: ValueKey('attendance-grade-$_gradeId'),
-                  initialValue: _gradeId,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: localizedColumnLabel(context, 'Grade'),
-                    prefixIcon: const Icon(Icons.layers_rounded),
-                  ),
-                  items: [
-                    for (final option in _gradeOptions)
-                      DropdownMenuItem(
-                        value: option.value,
-                        child: Text(
-                          option.label,
-                          overflow: TextOverflow.ellipsis,
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withValues(alpha: .05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                appIsArabic(context) ? 'تصفية الحضور' : 'Filter attendance',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      key: ValueKey('attendance-grade-$_gradeId'),
+                      initialValue: _gradeId,
+                      isExpanded: true,
+                      menuMaxHeight: 280,
+                      decoration: InputDecoration(
+                        labelText: localizedColumnLabel(context, 'Grade'),
+                        filled: true,
+                        fillColor: const Color(0xFFF8F9FA),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        floatingLabelBehavior: FloatingLabelBehavior.always,
+                        labelStyle: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Colors.grey.shade200,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Colors.grey.shade200,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppTheme.primary,
+                            width: 1.5,
+                          ),
                         ),
                       ),
-                  ],
-                  onChanged: _loadingFilters || _saving ? null : _selectGrade,
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  key: ValueKey('attendance-classroom-$_classroomId'),
-                  initialValue: _classroomId,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: localizedColumnLabel(context, 'Classroom'),
-                    prefixIcon: const Icon(Icons.meeting_room_rounded),
+                      items: [
+                        for (final option in _gradeOptions)
+                          DropdownMenuItem(
+                            value: option.value,
+                            child: Text(
+                              option.label,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                      onChanged: _loadingFilters || _saving
+                          ? null
+                          : _selectGrade,
+                    ),
                   ),
-                  items: [
-                    for (final option in _classroomOptions)
-                      DropdownMenuItem(
-                        value: option.value,
-                        child: Text(
-                          option.label,
-                          overflow: TextOverflow.ellipsis,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      key: ValueKey('attendance-classroom-$_classroomId'),
+                      initialValue: _classroomId,
+                      isExpanded: true,
+                      menuMaxHeight: 280,
+                      decoration: InputDecoration(
+                        labelText: localizedColumnLabel(
+                          context,
+                          'Classroom',
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF8F9FA),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        floatingLabelBehavior: FloatingLabelBehavior.always,
+                        labelStyle: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Colors.grey.shade200,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Colors.grey.shade200,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppTheme.primary,
+                            width: 1.5,
+                          ),
                         ),
                       ),
-                  ],
-                  onChanged: _gradeId == null || _loadingFilters || _saving
-                      ? null
-                      : _selectClassroom,
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  key: ValueKey('attendance-section-$_sectionId'),
-                  initialValue: _sectionId,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: localizedColumnLabel(context, 'Section'),
-                    prefixIcon: const Icon(Icons.groups_rounded),
+                      items: [
+                        for (final option in _classroomOptions)
+                          DropdownMenuItem(
+                            value: option.value,
+                            child: Text(
+                              option.label,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                      onChanged:
+                          _gradeId == null || _loadingFilters || _saving
+                          ? null
+                          : _selectClassroom,
+                    ),
                   ),
-                  items: [
-                    for (final option in _sectionOptions)
-                      DropdownMenuItem(
-                        value: option.value,
-                        child: Text(
-                          option.label,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: _classroomId == null || _loadingFilters || _saving
-                      ? null
-                      : _selectSection,
-                ),
-                if (_loadingFilters) ...[
-                  const SizedBox(height: 12),
-                  const LinearProgressIndicator(minHeight: 3),
                 ],
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: ValueKey('attendance-section-$_sectionId'),
+                initialValue: _sectionId,
+                isExpanded: true,
+                menuMaxHeight: 280,
+                decoration: InputDecoration(
+                  labelText: localizedColumnLabel(context, 'Section'),
+                  filled: true,
+                  fillColor: const Color(0xFFF8F9FA),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  labelStyle: const TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AppTheme.primary,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                items: [
+                  for (final option in _sectionOptions)
+                    DropdownMenuItem(
+                      value: option.value,
+                      child: Text(
+                        option.label,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                ],
+                onChanged: _classroomId == null || _loadingFilters || _saving
+                    ? null
+                    : _selectSection,
+              ),
+              if (_loadingFilters) ...[
+                const SizedBox(height: 12),
+                const LinearProgressIndicator(minHeight: 3),
               ],
-            ),
+            ],
           ),
         ),
         if (_error != null) ...[
@@ -1857,44 +1996,6 @@ class _ExamFlowContentState extends State<ExamFlowContent> {
   }
 }
 
-class FinanceTabsContent extends StatelessWidget {
-  const FinanceTabsContent({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Card(
-        child: Column(
-          children: [
-            TabBar(
-              tabs: [
-                Tab(text: t(context, 'fees')),
-                Tab(text: t(context, 'receipts')),
-              ],
-            ),
-            SizedBox(
-              height: 260,
-              child: TabBarView(
-                children: [
-                  ListTile(
-                    title: Text(t(context, 'tuitionFee')),
-                    subtitle: Text(t(context, 'unpaid200')),
-                  ),
-                  ListTile(
-                    title: Text(t(context, 'receipt1021')),
-                    subtitle: Text(t(context, 'paidDownload')),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class WizardContent extends StatelessWidget {
   const WizardContent({super.key, required this.moduleTitle});
 
@@ -2141,9 +2242,14 @@ class _PromotionBulkFormState extends State<_PromotionBulkForm> {
     final academicYear = '${values['academicYear'] ?? ''}';
     final academicYearNew = '${values['academicYearNew'] ?? ''}';
 
-    if (fromGrade.isEmpty || fromClassroom.isEmpty || fromSection.isEmpty ||
-        toGrade.isEmpty || toClassroom.isEmpty || toSection.isEmpty ||
-        academicYear.isEmpty || academicYearNew.isEmpty) {
+    if (fromGrade.isEmpty ||
+        fromClassroom.isEmpty ||
+        fromSection.isEmpty ||
+        toGrade.isEmpty ||
+        toClassroom.isEmpty ||
+        toSection.isEmpty ||
+        academicYear.isEmpty ||
+        academicYearNew.isEmpty) {
       setState(
         () => _error = appIsArabic(context)
             ? 'يرجى تعبئة جميع الحقول المطلوبة.'
@@ -2155,7 +2261,9 @@ class _PromotionBulkFormState extends State<_PromotionBulkForm> {
     final ok = await showConfirmationDialog(
       context,
       title: widget.action,
-      message: 'Promote ${studentIds.length} students?',
+      message: appIsArabic(context)
+          ? 'ترقية ${studentIds.length} من الطلاب؟'
+          : 'Promote ${studentIds.length} students?',
     );
     if (!ok || !context.mounted) return;
 
@@ -2281,113 +2389,6 @@ class _StatCard extends StatelessWidget {
                   Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WelcomeCard extends StatelessWidget {
-  const _WelcomeCard({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: AppTheme.softPanel(
-        gradient: AppTheme.promoGradient,
-        radius: 28,
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          Container(
-            width: 70,
-            height: 70,
-            decoration: const BoxDecoration(
-              color: AppTheme.honey,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.waving_hand_rounded,
-              color: Colors.white,
-              size: 34,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  style: TextStyle(color: Colors.white.withValues(alpha: .86)),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DashboardAction {
-  const _DashboardAction({required this.label, required this.moduleKey});
-
-  final String label;
-  final String moduleKey;
-}
-
-class _ScheduleCard extends StatelessWidget {
-  const _ScheduleCard({required this.actions});
-
-  final List<_DashboardAction> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              appIsArabic(context) ? 'جدول اليوم' : "Today's schedule",
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            ListTile(
-              leading: const _SoftIcon(icon: Icons.schedule_rounded),
-              title: Text(t(context, 'mathSectionA')),
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final action in actions)
-                  ActionChip(
-                    avatar: const Icon(Icons.bolt_rounded, size: 18),
-                    label: Text(action.label),
-                    onPressed: () {
-                      final module = moduleByKey(action.moduleKey);
-                      if (module != null) context.push(module.route);
-                    },
-                  ),
-              ],
             ),
           ],
         ),

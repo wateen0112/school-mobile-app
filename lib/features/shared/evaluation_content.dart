@@ -197,7 +197,7 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
   List<FormOption> _sections = [];
   List<FormOption> _subjects = [];
   List<FormOption> _students = [];
-  List<Map<String, dynamic>> _teacherSections = [];
+  List<Map<String, dynamic>> _teacherAssignments = const [];
 
   String? _selectedGradeId;
   String? _selectedClassroomId;
@@ -242,7 +242,7 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
       _studentLevels.clear();
       _studentNotes.clear();
     });
-    _buildClassroomAndSectionOptions(Localizations.localeOf(context).languageCode);
+    _buildFilterOptions(Localizations.localeOf(context).languageCode);
   }
 
   Future<void> _loadFilters() async {
@@ -253,25 +253,11 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
       _grades = await _repository.optionsFor('grades', languageCode: languageCode);
       debugPrint('[Evaluations] grades loaded: ${_grades.length}');
 
-      // Load the teacher's assigned sections and derive classrooms/sections from them.
-      final sectionsBody = await _api.get('/teacher/sections');
-      final sectionsData = sectionsBody['data'];
-      _teacherSections = sectionsData is List
-          ? sectionsData.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
-          : <Map<String, dynamic>>[];
-      debugPrint('[Evaluations] teacher sections loaded: ${_teacherSections.length}');
-      _buildClassroomAndSectionOptions(languageCode);
-      debugPrint('[Evaluations] classrooms: ${_classrooms.length}, sections: ${_sections.length}');
-
-      // Only show subjects assigned to this teacher.
-      final subjectRecords = await _repository.teacherSubjects();
-      _subjects = subjectRecords
-          .map((r) => FormOption(
-                value: '${r.id}',
-                label: _optionLabel(r.raw, languageCode),
-              ))
-          .toList();
-      debugPrint('[Evaluations] subjects loaded: ${_subjects.length}');
+      // Derive every filter option from the teacher's section/subject
+      // assignments so only genuinely assigned combinations are offered.
+      _teacherAssignments = await _repository.teacherAssignments();
+      debugPrint('[Evaluations] teacher assignments loaded: ${_teacherAssignments.length}');
+      _buildFilterOptions(languageCode);
 
       _error = null;
     } catch (error, stackTrace) {
@@ -283,19 +269,31 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
     }
   }
 
-  void _buildClassroomAndSectionOptions(String languageCode) {
+  Map<String, dynamic>? _sectionOf(Map<String, dynamic> assignment) {
+    final section = _lookup(assignment, 'section');
+    return section is Map ? Map<String, dynamic>.from(section) : null;
+  }
+
+  void _buildFilterOptions(String languageCode) {
     final seenClassrooms = <String>{};
+    final seenSections = <String>{};
+    final seenSubjects = <String>{};
     _classrooms = [];
     _sections = [];
+    _subjects = [];
 
-    for (final section in _teacherSections) {
+    for (final assignment in _teacherAssignments) {
+      final section = _sectionOf(assignment);
+      if (section == null) continue;
       final grade = _lookup(section, 'Grades');
       final classroom = _lookup(section, 'My_classs');
       if (grade is! Map || classroom is! Map) continue;
+
+      if (_selectedGradeId != null && '${grade['id']}' != _selectedGradeId) {
+        continue;
+      }
+
       final classroomMap = Map<String, dynamic>.from(classroom);
-
-      if (_selectedGradeId != null && '${grade['id']}' != _selectedGradeId) continue;
-
       final classroomId = '${classroomMap['id']}';
       if (seenClassrooms.add(classroomId)) {
         _classrooms.add(FormOption(
@@ -303,19 +301,29 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
           label: _optionLabel(classroomMap, languageCode),
         ));
       }
-    }
 
-    for (final section in _teacherSections) {
-      final grade = _lookup(section, 'Grades');
-      final classroom = _lookup(section, 'My_classs');
-      final sectionMap = Map<String, dynamic>.from(section);
-      if (_selectedGradeId != null && (grade is! Map || '${grade['id']}' != _selectedGradeId)) continue;
-      if (_selectedClassroomId != null && (classroom is! Map || '${classroom['id']}' != _selectedClassroomId)) continue;
+      if (_selectedClassroomId != null && classroomId != _selectedClassroomId) {
+        continue;
+      }
 
-      _sections.add(FormOption(
-        value: '${sectionMap['id']}',
-        label: _optionLabel(sectionMap, languageCode),
-      ));
+      final sectionId = '${section['id']}';
+      if (seenSections.add(sectionId)) {
+        _sections.add(FormOption(
+          value: sectionId,
+          label: _optionLabel(section, languageCode),
+        ));
+      }
+
+      final subject = _lookup(assignment, 'subject');
+      if (subject is! Map) continue;
+      final subjectMap = Map<String, dynamic>.from(subject);
+      final subjectId = '${subjectMap['id']}';
+      if (seenSubjects.add(subjectId)) {
+        _subjects.add(FormOption(
+          value: subjectId,
+          label: _optionLabel(subjectMap, languageCode),
+        ));
+      }
     }
   }
 
@@ -328,7 +336,7 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
       _studentLevels.clear();
       _studentNotes.clear();
     });
-    _buildClassroomAndSectionOptions(Localizations.localeOf(context).languageCode);
+    _buildFilterOptions(Localizations.localeOf(context).languageCode);
     if (mounted) setState(() {});
   }
 
@@ -340,7 +348,7 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
       _studentLevels.clear();
       _studentNotes.clear();
     });
-    _buildClassroomAndSectionOptions(Localizations.localeOf(context).languageCode);
+    _buildFilterOptions(Localizations.localeOf(context).languageCode);
     if (mounted) setState(() {});
   }
 
@@ -568,20 +576,31 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
 
   Widget _buildFilterCard(BuildContext context) {
     try {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withValues(alpha: .05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Row(
               children: [
                 Expanded(
                   child: Text(
                     _EvaluationStrings.filter(context),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 if (_loadingFilters)
@@ -598,45 +617,61 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
                   ),
               ],
             ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdown(
+                    label: _EvaluationStrings.selectGrade(context),
+                    value: _selectedGradeId,
+                    options: _grades,
+                    onChanged: _onGradeChanged,
+                    icon: Icons.school_rounded,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildDropdown(
+                    label: _EvaluationStrings.selectClassroom(context),
+                    value: _selectedClassroomId,
+                    options: _classrooms,
+                    onChanged: _onClassroomChanged,
+                    icon: Icons.meeting_room_rounded,
+                    enabled: _selectedGradeId != null,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
-            _buildDropdown(
-              label: _EvaluationStrings.selectGrade(context),
-              value: _selectedGradeId,
-              options: _grades,
-              onChanged: _onGradeChanged,
-              icon: Icons.school_rounded,
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdown(
+                    label: _EvaluationStrings.selectSection(context),
+                    value: _selectedSectionId,
+                    options: _sections,
+                    onChanged: _onSectionChanged,
+                    icon: Icons.grid_view_rounded,
+                    enabled: _selectedClassroomId != null,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildDropdown(
+                    label: _EvaluationStrings.selectSubject(context),
+                    value: _selectedSubjectId,
+                    options: _subjects,
+                    onChanged: (value) => setState(() {
+                      _selectedSubjectId = value;
+                      _studentLevels.clear();
+                      _studentNotes.clear();
+                    }),
+                    icon: Icons.menu_book_rounded,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            _buildDropdown(
-              label: _EvaluationStrings.selectClassroom(context),
-              value: _selectedClassroomId,
-              options: _classrooms,
-              onChanged: _onClassroomChanged,
-              icon: Icons.meeting_room_rounded,
-              enabled: _selectedGradeId != null,
-            ),
-            const SizedBox(height: 10),
-            _buildDropdown(
-              label: _EvaluationStrings.selectSection(context),
-              value: _selectedSectionId,
-              options: _sections,
-              onChanged: _onSectionChanged,
-              icon: Icons.grid_view_rounded,
-              enabled: _selectedClassroomId != null,
-            ),
-            const SizedBox(height: 10),
-            _buildDropdown(
-              label: _EvaluationStrings.selectSubject(context),
-              value: _selectedSubjectId,
-              options: _subjects,
-              onChanged: (value) => setState(() {
-                _selectedSubjectId = value;
-                _studentLevels.clear();
-                _studentNotes.clear();
-              }),
-              icon: Icons.menu_book_rounded,
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -645,7 +680,7 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
                     value: _selectedMonth,
                     items: List.generate(
                       12,
-                      (i) => DropdownMenuItem(
+                      (i) => DropdownMenuItem<int>(
                         value: i + 1,
                         child: Text(_EvaluationStrings.monthName(context, i + 1)),
                       ),
@@ -666,7 +701,7 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
                       6,
                       (i) {
                         final year = DateTime.now().year - i;
-                        return DropdownMenuItem(
+                        return DropdownMenuItem<int>(
                           value: year,
                           child: Text('$year'),
                         );
@@ -681,7 +716,7 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
                 ),
               ],
             ),
-            if (!_loadingFilters && _teacherSections.isEmpty) ...[
+            if (!_loadingFilters && _teacherAssignments.isEmpty) ...[
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -705,16 +740,32 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _loading ? null : _loadEvaluations,
-              icon: const Icon(Icons.filter_list_rounded),
-              label: Text(_EvaluationStrings.apply(context)),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _loading ? null : _loadEvaluations,
+                icon: const Icon(Icons.filter_list, size: 18, color: Colors.white),
+                label: Text(
+                  _EvaluationStrings.apply(context),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+              ),
             ),
           ],
         ),
-      ),
-    );
+      );
     } catch (error, stackTrace) {
       debugPrint('[Evaluations] _buildFilterCard error: $error\n$stackTrace');
       return Card(
@@ -1060,14 +1111,39 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
       menuMaxHeight: 280,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon),
+        filled: true,
+        fillColor: const Color(0xFFF8F9FA),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: const TextStyle(
+          fontSize: 10,
+          color: Colors.grey,
+          fontWeight: FontWeight.w600,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+        ),
       ),
       items: [
         DropdownMenuItem(value: null, child: Text(_EvaluationStrings.all(context))),
         for (final option in options)
           DropdownMenuItem(
             value: option.value,
-            child: Text(option.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            child: Text(
+              option.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
           ),
       ],
       onChanged: enabled ? onChanged : null,
@@ -1085,7 +1161,30 @@ class _TeacherEvaluationsContentState extends State<TeacherEvaluationsContent> {
       initialValue: value,
       isExpanded: true,
       menuMaxHeight: 280,
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: const Color(0xFFF8F9FA),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: const TextStyle(
+          fontSize: 10,
+          color: Colors.grey,
+          fontWeight: FontWeight.w600,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+        ),
+      ),
       items: items,
       onChanged: onChanged,
     );
@@ -1604,7 +1703,11 @@ class _ParentEvaluationsContentState extends State<ParentEvaluationsContent> {
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      gradient: AppTheme.promoGradient,
+                      gradient: const LinearGradient(
+                        begin: Alignment.topRight,
+                        end: Alignment.bottomLeft,
+                        colors: [Color(0xFF1E3C72), Color(0xFF2A52BE)],
+                      ),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Icon(Icons.child_care_rounded, color: Colors.white),
@@ -1863,7 +1966,10 @@ class _StudentEvaluationsContentState extends State<StudentEvaluationsContent> {
     }
     setState(() => _loading = true);
     try {
-      final body = await _api.get('/evaluations/report/student/$_studentId');
+      final body = await _api.get(
+        '/evaluations/report/student/$_studentId',
+        options: Options(receiveTimeout: const Duration(seconds: 60)),
+      );
       _reportData = body['data'] is Map ? Map<String, dynamic>.from(body['data']) : null;
     } catch (error) {
       _error = ApiService.failureFrom(error).message;

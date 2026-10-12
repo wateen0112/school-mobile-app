@@ -146,11 +146,11 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
               children: [
                 CircleAvatar(
                   radius: 26,
-                  backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
+                  backgroundColor: const Color(0xFF1E3C72),
                   child: Text(
                     name.isEmpty ? '?' : name.characters.first.toUpperCase(),
                     style: const TextStyle(
-                      color: AppTheme.primary,
+                      color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 18,
                     ),

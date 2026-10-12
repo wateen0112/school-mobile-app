@@ -204,6 +204,368 @@ class SchoolRepository {
     }
   }
 
+  /// Sections assigned to the logged-in teacher (directly or through
+  /// teacher-subject assignments), each nested with its `Grades` and
+  /// `My_classs` records. Returned as plain maps so callers can build
+  /// grade/classroom/section filter options from them.
+  Future<List<Map<String, dynamic>>> teacherAssignedSections() async {
+    try {
+      final body = await _api.get('/teacher/sections');
+      return _extractData(body)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (error) {
+      throw ApiService.failureFrom(error);
+    }
+  }
+
+  /// Section/subject pairs the logged-in teacher is assigned to teach.
+  ///
+  /// This is the authoritative source for the rating screen: every grade,
+  /// classroom, section and subject option offered there is derived from these
+  /// pairs, so the teacher can never select a combination he does not teach.
+  Future<List<Map<String, dynamic>>> teacherAssignments() async {
+    try {
+      final body = await _api.get('/teacher/assignments');
+      return _extractData(body)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (error) {
+      throw ApiService.failureFrom(error);
+    }
+  }
+
+  /// Distinct grade options available to the teacher for a rating session.
+  /// Pass [sectionId] and/or [subjectId] to narrow the list.
+  Future<List<FormOption>> teacherAssignmentGradeOptions({
+    String? sectionId,
+    String? subjectId,
+    String languageCode = 'en',
+  }) async {
+    final assignments = await teacherAssignments();
+    final options = <FormOption>[];
+    final seen = <String>{};
+    for (final assignment in assignments) {
+      if (!_matchesAssignment(assignment, sectionId, subjectId)) continue;
+      final section = _nestedValue(assignment, 'section');
+      if (section is! Map) continue;
+      final grade = _nestedValue(Map<String, dynamic>.from(section), 'Grades');
+      if (grade is! Map) continue;
+      final gradeMap = Map<String, dynamic>.from(grade);
+      final id = '${gradeMap['id'] ?? _fallbackOptionValue(gradeMap)}';
+      if (seen.add(id)) {
+        options.add(FormOption(
+          value: id,
+          label: _optionLabel(gradeMap, languageCode: languageCode),
+        ));
+      }
+    }
+    return options;
+  }
+
+  /// Distinct classroom options available to the teacher for a rating session.
+  Future<List<FormOption>> teacherAssignmentClassroomOptions({
+    String? gradeId,
+    String? sectionId,
+    String? subjectId,
+    String languageCode = 'en',
+  }) async {
+    final assignments = await teacherAssignments();
+    final options = <FormOption>[];
+    final seen = <String>{};
+    for (final assignment in assignments) {
+      if (!_matchesAssignment(assignment, sectionId, subjectId)) continue;
+      final section = _nestedValue(assignment, 'section');
+      if (section is! Map) continue;
+      final sectionMap = Map<String, dynamic>.from(section);
+      final grade = _nestedValue(sectionMap, 'Grades');
+      if (gradeId != null && gradeId.isNotEmpty) {
+        if (grade is! Map || '${grade['id']}' != gradeId) continue;
+      }
+      final classroom = _nestedValue(sectionMap, 'My_classs');
+      if (classroom is! Map) continue;
+      final classroomMap = Map<String, dynamic>.from(classroom);
+      final id = '${classroomMap['id'] ?? _fallbackOptionValue(classroomMap)}';
+      if (seen.add(id)) {
+        options.add(FormOption(
+          value: id,
+          label: _optionLabel(classroomMap, languageCode: languageCode),
+        ));
+      }
+    }
+    return options;
+  }
+
+  /// Distinct section options available to the teacher for a rating session.
+  Future<List<FormOption>> teacherAssignmentSectionOptions({
+    String? gradeId,
+    String? classroomId,
+    String? sectionId,
+    String? subjectId,
+    String languageCode = 'en',
+  }) async {
+    final assignments = await teacherAssignments();
+    final options = <FormOption>[];
+    final seen = <String>{};
+    for (final assignment in assignments) {
+      if (!_matchesAssignment(assignment, sectionId, subjectId)) continue;
+      final section = _nestedValue(assignment, 'section');
+      if (section is! Map) continue;
+      final sectionMap = Map<String, dynamic>.from(section);
+
+      final grade = _nestedValue(sectionMap, 'Grades');
+      if (gradeId != null && gradeId.isNotEmpty) {
+        if (grade is! Map || '${grade['id']}' != gradeId) continue;
+      }
+      if (classroomId != null && classroomId.isNotEmpty) {
+        final classroom = _nestedValue(sectionMap, 'My_classs');
+        if (classroom is! Map ||
+            '${classroom['id'] ?? _fallbackOptionValue(Map<String, dynamic>.from(classroom))}' !=
+                classroomId) {
+          continue;
+        }
+      }
+
+      final id = '${sectionMap['id'] ?? _fallbackOptionValue(sectionMap)}';
+      if (seen.add(id)) {
+        options.add(FormOption(
+          value: id,
+          label: _optionLabel(sectionMap, languageCode: languageCode),
+        ));
+      }
+    }
+    return options;
+  }
+
+  /// Distinct subject options available to the teacher for a rating session.
+  Future<List<FormOption>> teacherAssignmentSubjectOptions({
+    String? gradeId,
+    String? classroomId,
+    String? sectionId,
+    String languageCode = 'en',
+  }) async {
+    final assignments = await teacherAssignments();
+    final options = <FormOption>[];
+    final seen = <String>{};
+    for (final assignment in assignments) {
+      if (!_matchesAssignment(assignment, sectionId, null)) continue;
+      final section = _nestedValue(assignment, 'section');
+      if (section is! Map) continue;
+      final sectionMap = Map<String, dynamic>.from(section);
+
+      if (gradeId != null && gradeId.isNotEmpty) {
+        final grade = _nestedValue(sectionMap, 'Grades');
+        if (grade is! Map || '${grade['id']}' != gradeId) continue;
+      }
+      if (classroomId != null && classroomId.isNotEmpty) {
+        final classroom = _nestedValue(sectionMap, 'My_classs');
+        if (classroom is! Map) continue;
+        final classroomMap = Map<String, dynamic>.from(classroom);
+        if ('${classroomMap['id'] ?? _fallbackOptionValue(classroomMap)}' !=
+            classroomId) {
+          continue;
+        }
+      }
+
+      final subject = _nestedValue(assignment, 'subject');
+      if (subject is! Map) continue;
+      final subjectMap = Map<String, dynamic>.from(subject);
+      final id = '${subjectMap['id'] ?? _fallbackOptionValue(subjectMap)}';
+      if (seen.add(id)) {
+        options.add(FormOption(
+          value: id,
+          label: _optionLabel(subjectMap, languageCode: languageCode),
+        ));
+      }
+    }
+    return options;
+  }
+
+  bool _matchesAssignment(
+    Map<String, dynamic> assignment,
+    String? sectionId,
+    String? subjectId,
+  ) {
+    if (sectionId != null && sectionId.isNotEmpty) {
+      if ('${assignment['section_id']}' != sectionId) return false;
+    }
+    if (subjectId != null && subjectId.isNotEmpty) {
+      if ('${assignment['subject_id']}' != subjectId) return false;
+    }
+    return true;
+  }
+
+  /// Grade filter options for the students screen, scoped to the grades the
+  /// teacher is assigned to (via teacher-subject assignments).
+  Future<List<FormOption>> teacherGradeOptions({
+    String languageCode = 'en',
+  }) async {
+    final sections = await teacherAssignedSections();
+    final seen = <String>{};
+    final options = <FormOption>[];
+    for (final section in sections) {
+      final grade = _nestedValue(section, 'Grades');
+      if (grade is! Map) continue;
+      final gradeMap = Map<String, dynamic>.from(grade);
+      final id = '${gradeMap['id'] ?? _fallbackOptionValue(gradeMap)}';
+      if (seen.add(id)) {
+        options.add(FormOption(
+          value: id,
+          label: _optionLabel(gradeMap, languageCode: languageCode),
+        ));
+      }
+    }
+    return options;
+  }
+
+  /// Section filter options for the students screen, scoped to the sections
+  /// assigned to the teacher. Pass [gradeId] to narrow to one grade.
+  Future<List<FormOption>> teacherSectionOptions(
+    String? gradeId, {
+    String languageCode = 'en',
+  }) async {
+    final sections = await teacherAssignedSections();
+    final options = <FormOption>[];
+    for (final section in sections) {
+      if (gradeId != null && gradeId.isNotEmpty) {
+        final grade = _nestedValue(section, 'Grades');
+        if (grade is! Map || '${grade['id']}' != gradeId) continue;
+      }
+      options.add(FormOption(
+        value: '${section['id'] ?? _fallbackOptionValue(section)}',
+        label: _optionLabel(section, languageCode: languageCode),
+      ));
+    }
+    return options;
+  }
+
+  /// Options scoped to the logged-in teacher for admin modal forms
+  /// (teacher-quizzes / teacher-questions): only his subjects, his assigned
+  /// grades/classrooms/sections, and his own quizzes.
+  ///
+  /// Each source is guarded so a failing endpoint only blanks that option
+  /// group instead of failing the whole form.
+  Future<Map<String, List<FormOption>>> teacherModalOptions({
+    String languageCode = 'en',
+    int? teacherId,
+    bool needsQuizzes = true,
+  }) async {
+    final subjects = <FormOption>[];
+    final grades = <FormOption>[];
+    final classrooms = <FormOption>[];
+    final sections = <FormOption>[];
+    final quizzes = <FormOption>[];
+
+    try {
+      final subjectRecords = await teacherSubjects();
+      for (final record in subjectRecords) {
+        subjects.add(FormOption(
+          value: '${record.id ?? _fallbackOptionValue(record.raw)}',
+          label: _optionLabel(record.raw, languageCode: languageCode),
+        ));
+      }
+    } catch (error) {
+      debugPrint(
+        '[SchoolRepository] teacherModalOptions: subjects failed: $error',
+      );
+    }
+
+    List<Map<String, dynamic>> sectionMaps = const [];
+    try {
+      final body = await _api.get('/teacher/sections');
+      sectionMaps = _extractData(body)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (error) {
+      debugPrint(
+        '[SchoolRepository] teacherModalOptions: sections failed: $error',
+      );
+      sectionMaps = const [];
+    }
+
+    final seenGrades = <String>{};
+    final seenClassrooms = <String>{};
+    for (final section in sectionMaps) {
+      final grade = _nestedValue(section, 'Grades');
+      if (grade is Map) {
+        final gradeMap = Map<String, dynamic>.from(grade);
+        final id =
+            '${gradeMap['id'] ?? gradeMap['ID'] ?? _fallbackOptionValue(gradeMap)}';
+        if (seenGrades.add(id)) {
+          grades.add(FormOption(
+            value: id,
+            label: _optionLabel(gradeMap, languageCode: languageCode),
+          ));
+        }
+      }
+      final classroom = _nestedValue(section, 'My_classs');
+      if (classroom is Map) {
+        final classroomMap = Map<String, dynamic>.from(classroom);
+        final id =
+            '${classroomMap['id'] ?? classroomMap['ID'] ?? _fallbackOptionValue(classroomMap)}';
+        if (seenClassrooms.add(id)) {
+          classrooms.add(FormOption(
+            value: id,
+            label: _optionLabel(classroomMap, languageCode: languageCode),
+          ));
+        }
+      }
+      sections.add(FormOption(
+        value: '${section['id'] ?? _fallbackOptionValue(section)}',
+        label: _optionLabel(section, languageCode: languageCode),
+      ));
+    }
+
+    if (needsQuizzes && teacherId != null) {
+      final config = apiConfigForKey('quizzes');
+      final ownerId = '$teacherId';
+      if (config != null) {
+        try {
+          final quizBody = await _api.get(
+            config.endpoint,
+            query: config.listQuery,
+          );
+          for (final item in _extractData(quizBody).whereType<Map>()) {
+            final raw = Map<String, dynamic>.from(item);
+            final owner = raw['teacher_id'] ??
+                ((raw['teacher'] is Map)
+                    ? (raw['teacher'] as Map)['id']
+                    : null);
+            if ('$owner' != ownerId) continue;
+            quizzes.add(FormOption(
+              value: '${raw['id'] ?? _fallbackOptionValue(raw)}',
+              label: _optionLabel(raw, languageCode: languageCode),
+            ));
+          }
+        } catch (error) {
+          debugPrint(
+            '[SchoolRepository] teacherModalOptions: quizzes failed: $error',
+          );
+        }
+      }
+    }
+
+    return {
+      'subjects': subjects,
+      'grades': grades,
+      'classrooms': classrooms,
+      'sections': sections,
+      'quizzes': quizzes,
+    };
+  }
+
+  static dynamic _nestedValue(Map<String, dynamic> map, String key) {
+    if (map.containsKey(key)) return map[key];
+    final lower = key.toLowerCase();
+    for (final entry in map.entries) {
+      if (entry.key.toLowerCase() == lower) return entry.value;
+    }
+    return null;
+  }
+
   Future<List<SchoolRecord>> teacherStudents({
     String? gradeId,
     String? classroomId,
@@ -515,6 +877,21 @@ class SchoolRepository {
         'Name',
         'title',
         'email',
+      ],
+      if (lower.contains('question')) ...[
+        'title',
+        'text',
+        'question',
+      ],
+      if (lower.contains('answer')) ...[
+        'answers',
+        'right_answer',
+        'answer',
+      ],
+      if (lower.contains('quiz')) ...[
+        'quizze',
+        'quiz',
+        'quizze_id',
       ],
       if (lower.contains('email')) ...['email', 'Email'],
       if (lower == 'from' || lower.contains('from')) ...[

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../core/config/api_config.dart';
-
 class AppScope extends InheritedWidget {
   const AppScope({super.key, required this.state, required super.child});
 
@@ -24,14 +22,12 @@ class AppState extends ChangeNotifier {
       token = _prefs.getString(_tokenKey),
       userName = _prefs.getString(_userNameKey),
       userType = _prefs.getString(_userTypeKey),
-      baseUrl = _prefs.getString(_baseUrlKey) ?? ApiConfig.defaultBaseUrl,
       hasSeenOnboarding = _prefs.getBool(_onboardingKey) ?? false;
 
   static const _localeKey = 'locale';
   static const _tokenKey = 'access_token';
   static const _userNameKey = 'user_name';
   static const _userTypeKey = 'user_type';
-  static const _baseUrlKey = 'base_url';
   static const _onboardingKey = 'has_seen_onboarding';
 
   final SharedPreferences _prefs;
@@ -40,7 +36,6 @@ class AppState extends ChangeNotifier {
   String? token;
   String? userName;
   String? userType;
-  String baseUrl;
   bool hasSeenOnboarding;
 
   bool get isAuthenticated => token != null && token!.isNotEmpty;
@@ -55,12 +50,6 @@ class AppState extends ChangeNotifier {
   Future<void> completeOnboarding() async {
     hasSeenOnboarding = true;
     await _prefs.setBool(_onboardingKey, true);
-    notifyListeners();
-  }
-
-  Future<void> setBaseUrl(String value) async {
-    baseUrl = value.trim().replaceFirst(RegExp(r'/+$'), '');
-    await _prefs.setString(_baseUrlKey, baseUrl);
     notifyListeners();
   }
 

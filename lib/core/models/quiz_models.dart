@@ -50,6 +50,7 @@ class QuizModel {
     this.grade,
     this.classroom,
     this.section,
+    this.teacherId,
     required this.timeLimit,
     required this.questionsCount,
     required this.status,
@@ -64,6 +65,7 @@ class QuizModel {
   final String? grade;
   final String? classroom;
   final String? section;
+  final int? teacherId;
   final int timeLimit;
   final int questionsCount;
   final String status;
@@ -83,6 +85,7 @@ class QuizModel {
       grade: quizRelationName(json['grade'], lang).letNullable(),
       classroom: quizRelationName(json['classroom'], lang).letNullable(),
       section: quizRelationName(json['section'], lang).letNullable(),
+      teacherId: (json['teacher_id'] as num?)?.toInt(),
       timeLimit: (json['time_limit'] as num?)?.toInt() ?? 0,
       questionsCount: (json['questions_count'] as num?)?.toInt() ?? 0,
       status: '${json['status'] ?? 'not_started'}',

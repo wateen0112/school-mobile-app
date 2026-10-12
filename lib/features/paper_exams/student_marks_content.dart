@@ -13,7 +13,8 @@ String _displayName(dynamic value, {String languageCode = 'en'}) {
   if (value == null) return '-';
   if (value is Map) {
     final map = Map<String, dynamic>.from(value);
-    final direct = map[languageCode] ??
+    final direct =
+        map[languageCode] ??
         map['Name'] ??
         map['name'] ??
         map['Name_en'] ??
@@ -24,6 +25,13 @@ String _displayName(dynamic value, {String languageCode = 'en'}) {
     if (direct != null) return _displayName(direct, languageCode: languageCode);
   }
   return '$value';
+}
+
+double _asDouble(dynamic value, {double fallback = 0}) {
+  if (value == null) return fallback;
+  if (value is num) return value.toDouble();
+  final parsed = double.tryParse('$value');
+  return parsed ?? fallback;
 }
 
 class StudentPaperExamMarksContent extends StatefulWidget {
@@ -77,15 +85,20 @@ class _StudentPaperExamMarksContentState
         final subject = exam['subject'] is Map
             ? Map<String, dynamic>.from(exam['subject'] as Map)
             : <String, dynamic>{};
-        _subjects.add(_SubjectSummary(
-          subjectId: int.tryParse(entry.key) ?? 0,
-          subjectName: _displayName(subject,
-              languageCode:
-                  Localizations.localeOf(context).languageCode),
-          totalMarks: marks.fold<double>(
-              0, (sum, m) => sum + ((m['marks_obtained'] ?? 0) as num).toDouble()),
-          examCount: marks.length,
-        ));
+        _subjects.add(
+          _SubjectSummary(
+            subjectId: int.tryParse(entry.key) ?? 0,
+            subjectName: _displayName(
+              subject,
+              languageCode: Localizations.localeOf(context).languageCode,
+            ),
+            totalMarks: marks.fold<double>(
+              0,
+              (sum, m) => sum + _asDouble(m['marks_obtained']),
+            ),
+            examCount: marks.length,
+          ),
+        );
       }
     } catch (error) {
       _error = ApiService.failureFrom(error).message;
@@ -99,16 +112,18 @@ class _StudentPaperExamMarksContentState
     final languageCode = Localizations.localeOf(context).languageCode;
     final isArabic = languageCode == 'ar';
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (_loading)
           const LoadingShimmer()
         else if (_error != null)
           Card(
             child: ListTile(
-              leading: const Icon(Icons.error_outline_rounded,
-                  color: AppTheme.coral),
+              leading: const Icon(
+                Icons.error_outline_rounded,
+                color: AppTheme.coral,
+              ),
               title: Text(_error!),
               trailing: IconButton(
                 icon: const Icon(Icons.refresh_rounded),
@@ -123,8 +138,11 @@ class _StudentPaperExamMarksContentState
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.assignment_rounded,
-                        size: 48, color: AppTheme.muted),
+                    Icon(
+                      Icons.assignment_rounded,
+                      size: 48,
+                      color: AppTheme.muted,
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       isArabic
@@ -146,10 +164,9 @@ class _StudentPaperExamMarksContentState
                 children: [
                   Text(
                     isArabic ? 'علامات الاختبارات الورقية' : 'Paper Exam Marks',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w900),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -170,8 +187,7 @@ class _StudentPaperExamMarksContentState
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
                   onTap: () {
-                    setState(() =>
-                        _selectedSubjectId = '${subject.subjectId}');
+                    setState(() => _selectedSubjectId = '${subject.subjectId}');
                   },
                   child: Padding(
                     padding: const EdgeInsets.all(14),
@@ -184,8 +200,10 @@ class _StudentPaperExamMarksContentState
                             color: AppTheme.primary.withValues(alpha: .12),
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: const Icon(Icons.menu_book_rounded,
-                              color: AppTheme.primary),
+                          child: const Icon(
+                            Icons.menu_book_rounded,
+                            color: AppTheme.primary,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -194,9 +212,7 @@ class _StudentPaperExamMarksContentState
                             children: [
                               Text(
                                 subject.subjectName,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
+                                style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w900),
                               ),
                               const SizedBox(height: 4),
@@ -211,7 +227,9 @@ class _StudentPaperExamMarksContentState
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: AppTheme.primary.withValues(alpha: .1),
                             borderRadius: BorderRadius.circular(10),
@@ -225,8 +243,10 @@ class _StudentPaperExamMarksContentState
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.chevron_left_rounded,
-                            color: AppTheme.muted),
+                        const Icon(
+                          Icons.chevron_left_rounded,
+                          color: AppTheme.muted,
+                        ),
                       ],
                     ),
                   ),
@@ -245,8 +265,9 @@ class _StudentPaperExamMarksContentState
   List<Widget> _buildSubjectDetail(bool isArabic, String languageCode) {
     final subjectMarks = _marksData[_selectedSubjectId] as List? ?? [];
     final subject = _subjects.firstWhere(
-        (s) => '${s.subjectId}' == _selectedSubjectId,
-        orElse: () => _subjects.first);
+      (s) => '${s.subjectId}' == _selectedSubjectId,
+      orElse: () => _subjects.first,
+    );
 
     return [
       Row(
@@ -259,10 +280,9 @@ class _StudentPaperExamMarksContentState
           Expanded(
             child: Text(
               subject.subjectName,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
           ),
         ],
@@ -280,20 +300,23 @@ class _StudentPaperExamMarksContentState
                     Expanded(
                       child: Text(
                         mark['paper_exam']?['title'] ?? '',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: ((mark['marks_obtained'] as num?)?.toDouble() ?? 0) >=
-                                ((mark['paper_exam']?['max_score'] as num?)
-                                        ?.toDouble() ??
-                                    100) *
+                        color:
+                            _asDouble(mark['marks_obtained']) >=
+                                _asDouble(
+                                  mark['paper_exam']?['max_score'],
+                                  fallback: 100,
+                                ) *
                                     0.5
                             ? Colors.green.shade50
                             : Colors.red.shade50,
@@ -303,10 +326,12 @@ class _StudentPaperExamMarksContentState
                         '${mark['marks_obtained'] ?? 0} / ${mark['paper_exam']?['max_score'] ?? 100}',
                         style: TextStyle(
                           fontWeight: FontWeight.w900,
-                          color: ((mark['marks_obtained'] as num?)?.toDouble() ?? 0) >=
-                                  ((mark['paper_exam']?['max_score'] as num?)
-                                          ?.toDouble() ??
-                                      100) *
+                          color:
+                              _asDouble(mark['marks_obtained']) >=
+                                  _asDouble(
+                                    mark['paper_exam']?['max_score'],
+                                    fallback: 100,
+                                  ) *
                                       0.5
                               ? Colors.green.shade700
                               : Colors.red.shade700,

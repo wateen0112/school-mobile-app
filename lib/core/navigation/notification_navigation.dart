@@ -12,6 +12,7 @@ String? notificationActionFor(NotificationItem notification) {
 
   final data = notification.data;
   if (data != null) {
+    if (data['type'] == 'transportation') return 'transportation';
     if (data['quizze_id'] != null) return 'exam';
     if (data['student_installment_id'] != null) return 'installment_reminder';
   }
@@ -51,6 +52,14 @@ int? notificationActionIdFor(NotificationItem notification) {
   if (action == 'installment_reminder' || action == 'installment_overdue') {
     return ('/my-installments', id);
   }
+  if (action == 'schedule_update') {
+    return ('/schedule', null);
+  }
+  if (action == 'transportation') {
+    // Transportation alerts deep-link: parents open the bus screen,
+    // drivers open their home (active trip lives there).
+    return (payload['role'] == 'driver' ? '/driver/home' : '/parent/transport', null);
+  }
   return ('/notifications', null);
 }
 
@@ -68,6 +77,12 @@ void openNotification(BuildContext context, NotificationItem notification) {
     case 'installment_reminder':
     case 'installment_overdue':
       context.push('/my-installments', extra: notificationActionIdFor(notification));
+      return;
+    case 'schedule_update':
+      context.push('/schedule');
+      return;
+    case 'transportation':
+      context.push('/parent/transport');
       return;
   }
   context.push('/notification-detail', extra: notification);

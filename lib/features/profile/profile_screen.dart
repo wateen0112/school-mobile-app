@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/app_models.dart';
 import '../../core/network/api_service.dart';
+import '../../core/network/background_notification_service.dart';
 import '../../core/network/profile_service.dart';
 import '../../core/state/session_controller.dart';
 import '../../core/theme/app_theme.dart';
@@ -17,15 +20,20 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  static const _notificationsKey = 'notifications_enabled';
+
   late final ProfileService _service;
   late final UserRole _role;
   late final String _languageCode;
 
   String? _displayName;
   String? _displaySubtitle;
+  String? _recordId;
   bool _loading = true;
   String? _error;
   bool _saving = false;
+  bool _obscurePassword = true;
+  bool _notificationsEnabled = true;
 
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -45,6 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _role = session.currentRole;
     _languageCode = session.locale.languageCode;
     _loadProfile();
+    _loadNotificationsPref();
   }
 
   @override
@@ -61,6 +70,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _loadNotificationsPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _notificationsEnabled = prefs.getBool(_notificationsKey) ?? true;
+    });
+  }
+
+  Future<void> _saveNotificationsPref(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_notificationsKey, value);
+    if (value) {
+      await BackgroundNotificationService.startPolling();
+    } else {
+      await BackgroundNotificationService.stopPolling();
+    }
+  }
+
   Future<void> _loadProfile() async {
     setState(() {
       _loading = true;
@@ -70,6 +97,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final profile = await _service.getProfile();
       _email.text = '${profile['email'] ?? ''}';
       _password.clear();
+
+      final id = profile['id'] ?? profile['ID'];
+      final prefix = switch (_role) {
+        UserRole.student => 'STD',
+        UserRole.teacher => 'TCH',
+        UserRole.parent => 'PRN',
+        UserRole.driver => 'DRV',
+      };
+      _recordId = id == null ? null : '#$prefix-$id';
 
       if (_role == UserRole.parent) {
         _nameAr.text = '${profile['name_father_ar'] ?? ''}';
@@ -158,251 +194,486 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isAr = appIsArabic(context);
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: _buildErrorCard(context),
-        ),
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 60),
+        child: Center(child: CircularProgressIndicator()),
       );
     }
 
-    return ListView(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(0, 0, 0, 150),
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: _buildErrorCard(context),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildAvatarCard(context),
+        _buildProfileHero(context),
         const SizedBox(height: 20),
         _buildSectionTitle(context, isAr ? 'معلومات الحساب' : 'Account Information'),
-        const SizedBox(height: 10),
-        _buildInfoCard(
-          context,
+        const SizedBox(height: 8),
+        _infoCard(
           children: [
-            _field(
+            _infoField(
               controller: _email,
               label: isAr ? 'البريد الإلكتروني' : 'Email',
-              icon: Icons.email_rounded,
-              type: TextInputType.emailAddress,
+              keyboardType: TextInputType.emailAddress,
+              iconBox: const _InfoIconBox(
+                icon: Icons.email_rounded,
+                background: Color(0xffEFF6FF),
+                foreground: Color(0xff2563EB),
+              ),
             ),
             _divider(),
-            _field(
+            _infoField(
               controller: _password,
               label: isAr ? 'كلمة المرور الجديدة (اختياري)' : 'New Password (optional)',
-              icon: Icons.lock_rounded,
-              obscure: true,
+              obscure: _obscurePassword,
+              placeholder: '••••••••••',
+              iconBox: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                      size: 18,
+                      color: AppTheme.muted,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const _InfoIconBox(
+                    icon: Icons.lock_rounded,
+                    background: Color(0xffEFF6FF),
+                    foreground: Color(0xff2563EB),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
         const SizedBox(height: 24),
         if (_role == UserRole.parent) ...[
           _buildSectionTitle(context, isAr ? 'معلومات الأب' : 'Father Information'),
-          const SizedBox(height: 10),
-          _buildInfoCard(
-            context,
+          const SizedBox(height: 8),
+          _infoCard(
             children: [
-              _field(
+              _infoField(
                 controller: _nameAr,
                 label: isAr ? 'الاسم (عربي)' : 'Name (Arabic)',
-                icon: Icons.person_rounded,
+                iconBox: const _InfoIconBox(
+                  icon: Icons.person_rounded,
+                  background: Color(0xffEEF2FF),
+                  foreground: Color(0xff4F46E5),
+                ),
               ),
               _divider(),
-              _field(
+              _infoField(
                 controller: _phoneFather,
                 label: isAr ? 'رقم الهاتف' : 'Phone',
-                icon: Icons.phone_rounded,
-                type: TextInputType.phone,
+                keyboardType: TextInputType.phone,
+                iconBox: const _InfoIconBox(
+                  icon: Icons.phone_rounded,
+                  background: Color(0xffEFF6FF),
+                  foreground: Color(0xff2563EB),
+                ),
               ),
               _divider(),
-              _field(
+              _infoField(
                 controller: _addressFather,
                 label: isAr ? 'العنوان' : 'Address',
-                icon: Icons.location_on_rounded,
+                iconBox: const _InfoIconBox(
+                  icon: Icons.location_on_rounded,
+                  background: Color(0xffF8FAFC),
+                  foreground: Color(0xff475569),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 24),
           _buildSectionTitle(context, isAr ? 'معلومات الأم' : 'Mother Information'),
-          const SizedBox(height: 10),
-          _buildInfoCard(
-            context,
+          const SizedBox(height: 8),
+          _infoCard(
             children: [
-              _field(
+              _infoField(
                 controller: _nameMotherAr,
                 label: isAr ? 'الاسم (عربي)' : 'Name (Arabic)',
-                icon: Icons.person_rounded,
+                iconBox: const _InfoIconBox(
+                  icon: Icons.person_rounded,
+                  background: Color(0xffEEF2FF),
+                  foreground: Color(0xff4F46E5),
+                ),
               ),
               _divider(),
-              _field(
+              _infoField(
                 controller: _phoneMother,
                 label: isAr ? 'رقم الهاتف' : 'Phone',
-                icon: Icons.phone_rounded,
-                type: TextInputType.phone,
+                keyboardType: TextInputType.phone,
+                iconBox: const _InfoIconBox(
+                  icon: Icons.phone_rounded,
+                  background: Color(0xffEFF6FF),
+                  foreground: Color(0xff2563EB),
+                ),
               ),
               _divider(),
-              _field(
+              _infoField(
                 controller: _addressMother,
                 label: isAr ? 'العنوان' : 'Address',
-                icon: Icons.location_on_rounded,
+                iconBox: const _InfoIconBox(
+                  icon: Icons.location_on_rounded,
+                  background: Color(0xffF8FAFC),
+                  foreground: Color(0xff475569),
+                ),
               ),
             ],
           ),
         ] else ...[
           _buildSectionTitle(context, isAr ? 'معلومات شخصية' : 'Personal Information'),
-          const SizedBox(height: 10),
-          _buildInfoCard(
-            context,
+          const SizedBox(height: 8),
+          _infoCard(
             children: [
-              _field(
+              _infoField(
                 controller: _nameAr,
                 label: isAr ? 'الاسم (عربي)' : 'Name (Arabic)',
-                icon: Icons.person_rounded,
+                iconBox: const _InfoIconBox(
+                  icon: Icons.person_rounded,
+                  background: Color(0xffEEF2FF),
+                  foreground: Color(0xff4F46E5),
+                ),
               ),
+              if (_role == UserRole.student) ...[
+                _divider(),
+                _readOnlyField(
+                  label: isAr ? 'رقم الهوية / القيد الأكاديمي' : 'Student ID',
+                  value: _recordId ?? '—',
+                  iconBox: const _InfoIconBox(
+                    icon: Icons.badge_rounded,
+                    background: Color(0xffF8FAFC),
+                    foreground: Color(0xff475569),
+                  ),
+                ),
+              ],
               if (_role == UserRole.teacher) ...[
                 _divider(),
-                _field(
+                _infoField(
                   controller: _address,
                   label: isAr ? 'العنوان' : 'Address',
-                  icon: Icons.location_on_rounded,
+                  iconBox: const _InfoIconBox(
+                    icon: Icons.location_on_rounded,
+                    background: Color(0xffF8FAFC),
+                    foreground: Color(0xff475569),
+                  ),
                 ),
               ],
             ],
           ),
         ],
-        const SizedBox(height: 24),
-        _buildSectionTitle(context, isAr ? 'الإعدادات' : 'Preferences'),
-        const SizedBox(height: 10),
-        Card(
-          margin: EdgeInsets.zero,
-          child: SwitchListTile(
-            title: Text(t(context, 'arabic')),
-            subtitle: Text(t(context, 'language')),
-            value: isAr,
-            onChanged: (value) {
-              final next = value ? const Locale('ar') : const Locale('en');
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                context.read<SessionController>().selectLocale(next);
-              });
-            },
-            secondary: const Icon(Icons.language_rounded, color: AppTheme.primary),
+        if (_role == UserRole.teacher) ...[
+          const SizedBox(height: 24),
+          _buildSectionTitle(context, isAr ? 'الراتب' : 'Salary'),
+          const SizedBox(height: 8),
+          _infoCard(
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const Key('profile-salary-link'),
+                  onTap: () => context.push('/teacher/salary'),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      children: [
+                        const _InfoIconBox(
+                          icon: Icons.payments_rounded,
+                          background: Color(0xffF5F3FF),
+                          foreground: Color(0xff7C3AED),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'الراتب الشهري',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xff1E293B),
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                isAr
+                                    ? 'عرض الراتب الأساسي وسجل الدفعات'
+                                    : 'View base salary and payment history',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xff94A3B8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 22,
+                          color: Color(0xffCBD5E1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 28),
-        FilledButton.icon(
-          onPressed: _saving ? null : _save,
-          icon: _saving
-              ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Icon(Icons.save_rounded),
-          label: Text(isAr ? 'حفظ التغييرات' : 'Save Changes'),
-        ),
+        ],
         const SizedBox(height: 24),
+        _buildSectionTitle(context, isAr ? 'الإعدادات العامة' : 'General Settings'),
+        const SizedBox(height: 8),
+        _infoCard(
+          children: [
+            _settingsRow(
+              icon: Icons.language_rounded,
+              iconBackground: const Color(0xffECFDF5),
+              iconForeground: const Color(0xff059669),
+              title: isAr ? 'العربية' : 'Arabic',
+              subtitle: isAr ? 'لغة التطبيق الافتراضية' : 'Default app language',
+              value: isAr,
+              onChanged: (value) {
+                final next = value ? const Locale('ar') : const Locale('en');
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  context.read<SessionController>().selectLocale(next);
+                });
+              },
+            ),
+            _divider(),
+            _settingsRow(
+              icon: Icons.notifications_rounded,
+              iconBackground: const Color(0xffFFF7ED),
+              iconForeground: const Color(0xffF97316),
+              title: isAr ? 'إشعارات الاختبارات والواجبات' : 'Exam & homework notifications',
+              subtitle: isAr ? 'تنبيهات فورية على الهاتف' : 'Instant alerts on your phone',
+              value: _notificationsEnabled,
+              onChanged: (value) {
+                setState(() => _notificationsEnabled = value);
+                _saveNotificationsPref(value);
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 26),
+        _saveButton(context, isAr),
+        const SizedBox(height: 16),
+        _logoutButton(context),
+        const SizedBox(height: 12),
       ],
     );
   }
 
-  Widget _buildAvatarCard(BuildContext context) {
+  Widget _buildProfileHero(BuildContext context) {
     final isAr = appIsArabic(context);
     final roleLabel = isAr ? _roleLabelAr(_role) : _roleLabelEn(_role);
 
     return Container(
-      decoration: AppTheme.softPanel(
-        gradient: AppTheme.heroGradient,
-        radius: 28,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: .1),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.person_rounded,
-                size: 38,
-                color: AppTheme.primary,
-              ),
-            ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _displayName ?? '',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  if (_displaySubtitle != null && _displaySubtitle!.isNotEmpty)
-                    Text(
-                      _displaySubtitle!,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      roleLabel,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [Color(0xFF1E3C72), Color(0xFF2A52BE)],
         ),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1E3C72).withValues(alpha: .3),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -24,
+            right: -24,
+            child: _HeroCircle(
+              size: 120,
+              color: Colors.white.withValues(alpha: .1),
+            ),
+          ),
+          Positioned(
+            bottom: -40,
+            left: -16,
+            child: _HeroCircle(
+              size: 130,
+              color: const Color(0xff60A5FA).withValues(alpha: .2),
+            ),
+          ),
+          Row(
+            children: [
+              Stack(
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: .1),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      size: 32,
+                      color: Color(0xff2563EB),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: const Color(0xff34D399),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            (_displayName ?? '').isEmpty ? '—' : _displayName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: .2),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: .25),
+                            ),
+                          ),
+                          child: Text(
+                            roleLabel,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    if (_displaySubtitle != null && _displaySubtitle!.isNotEmpty)
+                      Text(
+                        _displaySubtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xffDBEAFE),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    if (_recordId != null) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: .1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _recordId!,
+                          style: const TextStyle(
+                            color: Color(0xffDBEAFE),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: AppTheme.ink,
-            ),
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: Color(0xff64748B),
+        ),
       ),
     );
   }
 
-  Widget _buildInfoCard(BuildContext context, {required List<Widget> children}) {
-    return Card(
-      margin: EdgeInsets.zero,
+  Widget _infoCard({required List<Widget> children}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xffF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xff1D4ED8).withValues(alpha: .05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: children,
@@ -411,26 +682,234 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _field({
+  Widget _infoField({
     required TextEditingController controller,
     required String label,
-    required IconData icon,
-    TextInputType type = TextInputType.text,
+    TextInputType keyboardType = TextInputType.text,
     bool obscure = false,
+    String? placeholder,
+    required Widget iconBox,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: TextField(
-        controller: controller,
-        keyboardType: type,
-        obscureText: obscure,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, size: 22),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xff94A3B8),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                TextField(
+                  controller: controller,
+                  keyboardType: keyboardType,
+                  obscureText: obscure,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xff334155),
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    hintText: placeholder,
+                    hintStyle: const TextStyle(
+                      color: Color(0xffCBD5E1),
+                      letterSpacing: 2,
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          iconBox,
+        ],
+      ),
+    );
+  }
+
+  Widget _readOnlyField({
+    required String label,
+    required String value,
+    required Widget iconBox,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xff94A3B8),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xff334155),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          iconBox,
+        ],
+      ),
+    );
+  }
+
+  Widget _settingsRow({
+    required IconData icon,
+    required Color iconBackground,
+    required Color iconForeground,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          _InfoIconBox(
+            icon: icon,
+            background: iconBackground,
+            foreground: iconForeground,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xff1E293B),
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xff94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeTrackColor: const Color(0xff2563EB),
+            activeThumbColor: Colors.white,
+            inactiveThumbColor: Colors.white,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _saveButton(BuildContext context, bool isAr) {
+    final label = isAr ? 'حفظ التغييرات' : 'Save Changes';
+    return SizedBox(
+      height: 48,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xff2563EB), Color(0xff1D4ED8)],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xff2563EB).withValues(alpha: .35),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: _saving ? null : _save,
+            child: Center(
+              child: _saving
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.save_rounded,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _logoutButton(BuildContext context) {
+    final session = context.read<SessionController>();
+    return TextButton.icon(
+      onPressed: () {
+        session.logout().then((_) {
+          if (context.mounted) context.go('/login');
+        });
+      },
+      icon: const Icon(Icons.logout_rounded, size: 18, color: Color(0xffF43F5E)),
+      label: Text(
+        t(context, 'logout'),
+        style: const TextStyle(
+          color: Color(0xffF43F5E),
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -439,9 +918,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _divider() {
     return const Divider(
       height: 1,
-      indent: 56,
+      thickness: 1,
+      indent: 16,
       endIndent: 16,
-      color: Color(0xffedf1ff),
+      color: Color(0xffF1F5F9),
     );
   }
 
@@ -477,6 +957,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       UserRole.teacher => 'معلم',
       UserRole.student => 'طالب',
       UserRole.parent => 'ولي أمر',
+      UserRole.driver => 'سائق',
     };
   }
 
@@ -485,6 +966,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
       UserRole.teacher => 'Teacher',
       UserRole.student => 'Student',
       UserRole.parent => 'Parent',
+      UserRole.driver => 'Driver',
     };
+  }
+}
+
+class _InfoIconBox extends StatelessWidget {
+  const _InfoIconBox({
+    required this.icon,
+    required this.background,
+    required this.foreground,
+  });
+
+  final IconData icon;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(icon, size: 20, color: foreground),
+    );
+  }
+}
+
+class _HeroCircle extends StatelessWidget {
+  const _HeroCircle({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
   }
 }

@@ -16,7 +16,8 @@ String _displayName(dynamic value, {String languageCode = 'en'}) {
   if (value == null) return '-';
   if (value is Map) {
     final map = Map<String, dynamic>.from(value);
-    final direct = map[languageCode] ??
+    final direct =
+        map[languageCode] ??
         map['Name'] ??
         map['name'] ??
         map['Name_en'] ??
@@ -115,9 +116,12 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
       final data = body['data'];
       final rawList = data is List ? data : [];
       _subjects = rawList
-          .map((e) => SchoolRecord(
+          .map(
+            (e) => SchoolRecord(
               id: e['id'] is int ? e['id'] : int.tryParse('${e['id']}'),
-              raw: Map<String, dynamic>.from(e)))
+              raw: Map<String, dynamic>.from(e),
+            ),
+          )
           .toList();
     } catch (error) {
       _error = ApiService.failureFrom(error).message;
@@ -133,14 +137,16 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
       _error = null;
     });
     try {
-      final body =
-          await _api.get('/teacher/paper-exams/$_selectedSubjectId');
+      final body = await _api.get('/teacher/paper-exams/$_selectedSubjectId');
       final data = body['data'];
       final rawList = data is List ? data : [];
       _exams = rawList
-          .map((e) => SchoolRecord(
+          .map(
+            (e) => SchoolRecord(
               id: e['id'] is int ? e['id'] : int.tryParse('${e['id']}'),
-              raw: Map<String, dynamic>.from(e)))
+              raw: Map<String, dynamic>.from(e),
+            ),
+          )
           .toList();
     } catch (error) {
       _error = ApiService.failureFrom(error).message;
@@ -159,9 +165,12 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
       final data = body['data'];
       final rawList = data is List ? data : [];
       _students = rawList
-          .map((e) => SchoolRecord(
+          .map(
+            (e) => SchoolRecord(
               id: e['id'] is int ? e['id'] : int.tryParse('${e['id']}'),
-              raw: Map<String, dynamic>.from(e)))
+              raw: Map<String, dynamic>.from(e),
+            ),
+          )
           .toList();
 
       _markControllers.clear();
@@ -171,9 +180,11 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
         if (sid == null) continue;
         final existing = student.raw['marks_obtained'];
         _markControllers[sid] = TextEditingController(
-            text: existing != null ? '$existing' : '');
+          text: existing != null ? '$existing' : '',
+        );
         _markNotesControllers[sid] = TextEditingController(
-            text: student.raw['mark_notes'] ?? '');
+          text: student.raw['mark_notes'] ?? '',
+        );
       }
 
       _selectedExamId = examId;
@@ -189,10 +200,15 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
     if (_selectedSubjectId == null ||
         _titleCtrl.text.trim().isEmpty ||
         _examDate.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(appIsArabic(context)
-              ? 'يرجى إدخال العنوان والتاريخ واختيار المادة'
-              : 'Please fill in title, date, and select a subject')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            appIsArabic(context)
+                ? 'يرجى إدخال العنوان والتاريخ واختيار المادة'
+                : 'Please fill in title, date, and select a subject',
+          ),
+        ),
+      );
       return;
     }
 
@@ -203,21 +219,27 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
     try {
       // Find the subject to get grade/classroom/section info
       final subject = _subjects.firstWhere(
-          (s) => '${s.id}' == _selectedSubjectId,
-          orElse: () => _subjects.first);
+        (s) => '${s.id}' == _selectedSubjectId,
+        orElse: () => _subjects.first,
+      );
       final subjectRaw = subject.raw;
 
-      final body = await _api.post('/paper-exams', data: {
-        'title': _titleCtrl.text.trim(),
-        'exam_date': _examDate,
-        'subject_id': int.tryParse(_selectedSubjectId!) ?? 0,
-        'teacher_id': context.read<SessionController>().authStorage.user?['id'] ?? 0,
-        'grade_id': subjectRaw['grade_id'] ?? subjectRaw['Grade_id'] ?? 1,
-        'classroom_id': subjectRaw['classroom_id'] ?? subjectRaw['Classroom_id'] ?? 1,
-        'section_id': subjectRaw['section_id'] ?? 1,
-        'max_score': double.tryParse(_maxScore) ?? 100,
-        'notes': _notesCtrl.text.trim(),
-      });
+      final body = await _api.post(
+        '/paper-exams',
+        data: {
+          'title': _titleCtrl.text.trim(),
+          'exam_date': _examDate,
+          'subject_id': int.tryParse(_selectedSubjectId!) ?? 0,
+          'teacher_id':
+              context.read<SessionController>().authStorage.user?['id'] ?? 0,
+          'grade_id': subjectRaw['grade_id'] ?? subjectRaw['Grade_id'] ?? 1,
+          'classroom_id':
+              subjectRaw['classroom_id'] ?? subjectRaw['Classroom_id'] ?? 1,
+          'section_id': subjectRaw['section_id'] ?? 1,
+          'max_score': double.tryParse(_maxScore) ?? 100,
+          'notes': _notesCtrl.text.trim(),
+        },
+      );
 
       _titleCtrl.clear();
       _notesCtrl.clear();
@@ -227,7 +249,14 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
       await _loadExams();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Exam created successfully')));
+        SnackBar(
+          content: Text(
+            appIsArabic(context)
+                ? 'تم إنشاء الاختبار بنجاح'
+                : 'Exam created successfully',
+          ),
+        ),
+      );
     } catch (error) {
       _error = ApiService.failureFrom(error).message;
     } finally {
@@ -246,20 +275,27 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
         final sid = s.id!;
         return {
           'student_id': sid,
-          'marks_obtained': double.tryParse(
-                  _markControllers[sid]?.text.trim() ?? '') ??
-              0,
+          'marks_obtained':
+              double.tryParse(_markControllers[sid]?.text.trim() ?? '') ?? 0,
           'notes': _markNotesControllers[sid]?.text.trim() ?? '',
         };
       }).toList();
 
-      await _api.post('/paper-exams/$_selectedExamId/marks', data: {
-        'marks': marks,
-      });
+      await _api.post(
+        '/paper-exams/$_selectedExamId/marks',
+        data: {'marks': marks},
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Marks saved successfully')));
+        SnackBar(
+          content: Text(
+            appIsArabic(context)
+                ? 'تم حفظ العلامات بنجاح'
+                : 'Marks saved successfully',
+          ),
+        ),
+      );
     } catch (error) {
       _error = ApiService.failureFrom(error).message;
     } finally {
@@ -270,9 +306,10 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
   Future<void> _publishExam(int examId) async {
     final confirmed = await showConfirmationDialog(
       context,
-      title: 'Publish Results',
-      message:
-          'Are you sure? Notifications will be sent to students and parents.',
+      title: appIsArabic(context) ? 'نشر النتائج' : 'Publish Results',
+      message: appIsArabic(context)
+          ? 'هل أنت متأكد؟ سيتم إرسال إشعارات للطلاب وأولياء الأمور.'
+          : 'Are you sure? Notifications will be sent to students and parents.',
     );
     if (confirmed != true) return;
 
@@ -281,11 +318,17 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
       await _loadExams();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Results published!')));
+        SnackBar(
+          content: Text(
+            appIsArabic(context) ? 'تم نشر النتائج!' : 'Results published!',
+          ),
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ApiService.failureFrom(error).message)));
+        SnackBar(content: Text(ApiService.failureFrom(error).message)),
+      );
     }
   }
 
@@ -294,57 +337,97 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
     final languageCode = Localizations.localeOf(context).languageCode;
     final isArabic = languageCode == 'ar';
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Subject selector
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  isArabic ? 'الاختبارات الورقية' : 'Paper Exams',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w900),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withValues(alpha: .05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                isArabic ? 'اختر المادة' : 'Choose a subject',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedSubjectId,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText:
-                        isArabic ? 'المادة الدراسية' : 'Subject',
-                    prefixIcon: const Icon(Icons.menu_book_rounded),
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedSubjectId,
+                isExpanded: true,
+                menuMaxHeight: 280,
+                decoration: InputDecoration(
+                  labelText: isArabic ? 'المادة الدراسية' : 'Subject',
+                  filled: true,
+                  fillColor: const Color(0xFFF8F9FA),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
                   ),
-                  items: [
-                    for (final subject in _subjects)
-                      DropdownMenuItem(
-                        value: '${subject.id}',
-                        child: Text(_displayName(subject.raw,
-                            languageCode: languageCode)),
-                      ),
-                  ],
-                  onChanged: _loadingSubjects
-                      ? null
-                      : (value) {
-                          setState(() {
-                            _selectedSubjectId = value;
-                            _selectedView = null;
-                            _exams = [];
-                          });
-                          _loadExams();
-                        },
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  labelStyle: const TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AppTheme.primary,
+                      width: 1.5,
+                    ),
+                  ),
                 ),
-                if (_loadingSubjects) ...[
-                  const SizedBox(height: 12),
-                  const LinearProgressIndicator(minHeight: 3),
+                items: [
+                  for (final subject in _subjects)
+                    DropdownMenuItem(
+                      value: '${subject.id}',
+                      child: Text(
+                        _displayName(subject.raw, languageCode: languageCode),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                 ],
+                onChanged: _loadingSubjects
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedSubjectId = value;
+                          _selectedView = null;
+                          _exams = [];
+                        });
+                        _loadExams();
+                      },
+              ),
+              if (_loadingSubjects) ...[
+                const SizedBox(height: 12),
+                const LinearProgressIndicator(minHeight: 3),
               ],
-            ),
+            ],
           ),
         ),
 
@@ -352,14 +435,18 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
           const SizedBox(height: 10),
           Card(
             child: ListTile(
-              leading: const Icon(Icons.error_outline_rounded,
-                  color: AppTheme.coral),
+              leading: const Icon(
+                Icons.error_outline_rounded,
+                color: AppTheme.coral,
+              ),
               title: Text(_error!),
             ),
           ),
         ],
 
-        if (_selectedSubjectId != null && _selectedView != 'create' && _selectedView != 'marks') ...[
+        if (_selectedSubjectId != null &&
+            _selectedView != 'create' &&
+            _selectedView != 'marks') ...[
           const SizedBox(height: 12),
           // Action buttons
           Row(
@@ -389,10 +476,9 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                 children: [
                   Text(
                     isArabic ? 'اختبار جديد' : 'New Exam',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w900),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -418,8 +504,11 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                         lastDate: DateTime(2030),
                       );
                       if (picked != null) {
-                        setState(() => _examDate =
-                            picked.toIso8601String().split('T')[0]);
+                        setState(
+                          () => _examDate = picked.toIso8601String().split(
+                            'T',
+                          )[0],
+                        );
                       }
                     },
                   ),
@@ -428,8 +517,7 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                     controller: TextEditingController(text: _maxScore),
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      labelText:
-                          isArabic ? 'الدرجة العظمى' : 'Max Score',
+                      labelText: isArabic ? 'الدرجة العظمى' : 'Max Score',
                       prefixIcon: const Icon(Icons.score_rounded),
                     ),
                     onChanged: (v) => _maxScore = v,
@@ -453,7 +541,8 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                               ? const SizedBox.square(
                                   dimension: 18,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2),
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : const Icon(Icons.save_rounded),
                           label: Text(isArabic ? 'حفظ' : 'Save'),
@@ -462,8 +551,7 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () =>
-                              setState(() => _selectedView = null),
+                          onPressed: () => setState(() => _selectedView = null),
                           icon: const Icon(Icons.close_rounded),
                           label: Text(isArabic ? 'إلغاء' : 'Cancel'),
                         ),
@@ -477,7 +565,9 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
         ],
 
         // Exam list
-        if (_selectedSubjectId != null && _selectedView != 'create' && _selectedView != 'marks') ...[
+        if (_selectedSubjectId != null &&
+            _selectedView != 'create' &&
+            _selectedView != 'marks') ...[
           const SizedBox(height: 16),
           if (_loadingExams)
             const LoadingShimmer()
@@ -511,30 +601,30 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                               children: [
                                 Text(
                                   exam.raw['title'] ?? '',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(
-                                          fontWeight: FontWeight.w900),
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w900),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   '${isArabic ? 'التاريخ' : 'Date'}: ${_formatDate(exam.raw['exam_date'])}',
                                   style: const TextStyle(
-                                      color: AppTheme.muted,
-                                      fontSize: 13),
+                                    color: AppTheme.muted,
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 Text(
                                   '${isArabic ? 'الدرجة' : 'Score'}: ${exam.raw['max_score'] ?? 100}',
                                   style: const TextStyle(
-                                      color: AppTheme.muted,
-                                      fontSize: 13),
+                                    color: AppTheme.muted,
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 Text(
                                   '${isArabic ? 'الطلاب' : 'Students'}: ${exam.raw['marks_count'] ?? 0}',
                                   style: const TextStyle(
-                                      color: AppTheme.muted,
-                                      fontSize: 13),
+                                    color: AppTheme.muted,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ],
                             ),
@@ -543,11 +633,13 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: exam.raw['status'] == 'published'
-                                      ? Colors.green.shade50
-                                      : Colors.orange.shade50,
+                                      ? AppTheme.mint.withValues(alpha: .12)
+                                      : AppTheme.honey.withValues(alpha: .14),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -557,10 +649,9 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
-                                    color:
-                                        exam.raw['status'] == 'published'
-                                            ? Colors.green.shade700
-                                            : Colors.orange.shade700,
+                                    color: exam.raw['status'] == 'published'
+                                        ? AppTheme.mint
+                                        : AppTheme.honey,
                                   ),
                                 ),
                               ),
@@ -568,8 +659,10 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                               if (exam.raw['status'] != 'published')
                                 TextButton.icon(
                                   onPressed: () => _publishExam(exam.id!),
-                                  icon: const Icon(Icons.send_rounded,
-                                      size: 16),
+                                  icon: const Icon(
+                                    Icons.send_rounded,
+                                    size: 16,
+                                  ),
                                   label: Text(
                                     isArabic ? 'نشر' : 'Publish',
                                     style: const TextStyle(fontSize: 12),
@@ -584,7 +677,8 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                         onPressed: () => _loadStudents(exam.id!),
                         icon: const Icon(Icons.edit_note_rounded),
                         label: Text(
-                            isArabic ? 'إدخال العلامات' : 'Enter Marks'),
+                          isArabic ? 'إدخال العلامات' : 'Enter Marks',
+                        ),
                       ),
                     ],
                   ),
@@ -608,10 +702,9 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
               const SizedBox(width: 8),
               Text(
                 isArabic ? 'إدخال العلامات' : 'Enter Marks',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w900),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
             ],
           ),
@@ -646,11 +739,11 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              _displayName(student.raw,
-                                  languageCode: languageCode),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              _displayName(
+                                student.raw,
+                                languageCode: languageCode,
+                              ),
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
                           ),
@@ -665,12 +758,12 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                               decoration: InputDecoration(
                                 hintText: '0',
                                 isDense: true,
-                                contentPadding:
-                                    const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 8),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 8,
+                                ),
                                 border: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
                             ),
@@ -688,7 +781,9 @@ class _TeacherPaperExamsContentState extends State<TeacherPaperExamsContent> {
                               : 'Notes (optional)',
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 6),
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),

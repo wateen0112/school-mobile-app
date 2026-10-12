@@ -25,11 +25,16 @@ class AuthService {
   Future<AuthSession> login({
     required String email,
     required String password,
+    String? type,
   }) async {
     try {
       final body = await _api.post(
         '/auth/login',
-        data: {'email': email, 'password': password},
+        data: {
+          'email': email,
+          'password': password,
+          if (type != null && type.isNotEmpty) 'type': type,
+        },
       );
       final token =
           body['access_token'] ??
@@ -68,12 +73,14 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    // Clear local session first so we don't wait on network calls
+    await _storage.clearSession();
+
+    // Try to notify server, but don't block on it
     try {
       await _api.post('/logout');
     } catch (_) {
-      // Local session must still be cleared when the token is expired/revoked.
-    } finally {
-      await _storage.clearSession();
+      // Ignore errors - logout is complete locally
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../core/config/api_config.dart';
 import '../core/localization/error_messages.dart';
 import '../core/network/logging_interceptor.dart';
 import 'app_state.dart';
@@ -18,7 +19,7 @@ class SchoolApiClient {
   SchoolApiClient({required this.appState})
       : _dio = Dio(
           BaseOptions(
-            baseUrl: appState.baseUrl,
+            baseUrl: ApiConfig.defaultBaseUrl,
             connectTimeout: const Duration(seconds: 20),
             receiveTimeout: const Duration(seconds: 30),
             headers: const {
@@ -35,9 +36,13 @@ class SchoolApiClient {
 
   Options _options() {
     final token = appState.token;
+    final lang = appState.isArabic ? 'ar' : 'en';
     return Options(
       headers: {
         if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        'lang': lang,
+        'X-Locale': lang,
+        'Accept-Language': lang,
       },
     );
   }
@@ -79,6 +84,12 @@ class SchoolApiClient {
     return _request(() => _dio.get('/dashboard', options: _options()));
   }
 
+  Future<Map<String, dynamic>> getStudentDashboard() {
+    return _request(
+      () => _dio.get('/student/dashboard', options: _options()),
+    );
+  }
+
   Future<List<dynamic>> list(String endpoint, {Map<String, dynamic>? query}) async {
     final body = await _request(
       () => _dio.get(endpoint, queryParameters: query, options: _options()),
@@ -108,7 +119,7 @@ class SchoolApiClient {
 
   Future<Map<String, dynamic>> _request(Future<Response<dynamic>> Function() call) async {
     try {
-      _dio.options.baseUrl = appState.baseUrl;
+      _dio.options.baseUrl = ApiConfig.defaultBaseUrl;
       final response = await call();
       final body = response.data;
       if (body is Map<String, dynamic>) return body;

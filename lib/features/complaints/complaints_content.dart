@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 
 import '../../core/network/api_service.dart';
 import '../../core/state/session_controller.dart';
+import '../../core/theme/app_theme.dart';
 import '../../widgets/shared_widgets.dart';
 import '../../core/widgets/loading_shimmer.dart';
 import '../../core/widgets/confirmation_dialog.dart';
@@ -250,11 +251,11 @@ class _ComplaintsContentState extends State<ComplaintsContent> {
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'pending': return Colors.orange;
-      case 'in_progress': return Colors.blue;
-      case 'resolved': return Colors.green;
-      case 'rejected': return Colors.red;
-      default: return Colors.grey;
+      case 'pending': return AppTheme.honey;
+      case 'in_progress': return AppTheme.primary;
+      case 'resolved': return AppTheme.mint;
+      case 'rejected': return AppTheme.danger;
+      default: return AppTheme.muted;
     }
   }
 
@@ -279,9 +280,9 @@ class _ComplaintsContentState extends State<ComplaintsContent> {
 
   Color _priorityColor(String priority) {
     switch (priority) {
-      case 'urgent': return Colors.red;
-      case 'high': return Colors.orange;
-      default: return Colors.grey;
+      case 'urgent': return AppTheme.danger;
+      case 'high': return AppTheme.honey;
+      default: return AppTheme.muted;
     }
   }
 

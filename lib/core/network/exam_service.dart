@@ -11,6 +11,21 @@ class ExamService {
     String? languageCode,
   }) async {
     final response = await _api.get('/student/exams');
+    return _parseQuizList(response, languageCode: languageCode);
+  }
+
+  /// Exams created by the authenticated teacher (scoped server-side).
+  Future<List<QuizModel>> fetchTeacherExams({
+    String? languageCode,
+  }) async {
+    final response = await _api.get('/teacher/exams');
+    return _parseQuizList(response, languageCode: languageCode);
+  }
+
+  List<QuizModel> _parseQuizList(
+    Map<String, dynamic> response, {
+    String? languageCode,
+  }) {
     final data = response['data'];
 
     if (data is List) {

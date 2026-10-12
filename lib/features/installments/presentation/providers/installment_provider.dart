@@ -45,6 +45,14 @@ class InstallmentProvider extends ChangeNotifier {
 
   bool get isParent => role == UserRole.parent;
 
+  /// All installments (unfiltered), across children for parent role.
+  List<MyInstallment> get allInstallments {
+    if (isParent) {
+      return _allParentGroups.expand((g) => g.installments).toList();
+    }
+    return _allMyInstallments;
+  }
+
   InstallmentSummary get summary {
     final all = isParent
         ? _allParentGroups.expand((g) => g.installments)

@@ -213,7 +213,7 @@ class _NotificationDropdownMenuState extends State<NotificationDropdownMenu> {
             ),
             const SizedBox(width: 4),
             Icon(
-              isRtl ? Icons.arrow_back_rounded : Icons.arrow_forward_rounded,
+              isRtl ? Icons.arrow_forward_rounded : Icons.arrow_forward_rounded,
               size: 16,
               color: AppTheme.primary,
             ),

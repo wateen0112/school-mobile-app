@@ -13,12 +13,15 @@ import 'core/router/app_navigator.dart';
 import 'core/router/app_router.dart';
 import 'core/state/session_controller.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/splash_screen.dart';
+import 'features/transportation/services/driver_location_foreground_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   final prefs = await SharedPreferences.getInstance();
   await BackgroundNotificationService.initialize();
+  await DriverLocationForegroundService.initialize();
   runApp(SchoolMobileApp(prefs: prefs));
 }
 
@@ -36,6 +39,7 @@ class _SchoolMobileAppState extends State<SchoolMobileApp> {
   late GoRouter _router;
   bool? _lastAuthenticated;
   UserRole? _lastRole;
+  bool _splashVisible = true;
 
   @override
   void initState() {
@@ -45,12 +49,17 @@ class _SchoolMobileAppState extends State<SchoolMobileApp> {
     _lastAuthenticated = _session.isAuthenticated;
     _lastRole = _session.currentRole;
     _session.addListener(_onSessionChanged);
-    _session.bootstrap().then((_) async {
-      if (!mounted) return;
-      _lastAuthenticated = _session.isAuthenticated;
-      _lastRole = _session.currentRole;
-      setState(() => _router = createRouter(_session, navigatorKey: appNavigatorKey));
-      await _handleInitialMessage();
+
+    // Bootstrap the session to restore auth state
+    _session.bootstrap();
+
+    // Show splash screen for at least 2.5 seconds to allow animation to complete
+    setState(() {});
+
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (mounted) {
+        setState(() => _splashVisible = false);
+      }
     });
   }
 
@@ -87,7 +96,9 @@ class _SchoolMobileAppState extends State<SchoolMobileApp> {
         builder: (context, _) {
           return MaterialApp.router(
             debugShowCheckedModeBanner: false,
-            title: 'School Management',
+            title: _session.locale.languageCode == 'ar'
+                ? 'نظام إدارة المدرسة'
+                : 'School Management',
             locale: _session.locale,
             supportedLocales: const [Locale('en'), Locale('ar')],
             localeListResolutionCallback: (locales, supportedLocales) =>
@@ -100,11 +111,13 @@ class _SchoolMobileAppState extends State<SchoolMobileApp> {
             theme: AppTheme.light(_session.locale),
             routerConfig: _router,
             builder: (context, child) {
-              if (_session.isBootstrapping) {
-                return const Scaffold(
-                  backgroundColor: AppTheme.surface,
-                  body: Center(child: CircularProgressIndicator()),
-                );
+              // Show splash screen for first 2 seconds or until bootstrap completes
+              if (_splashVisible && _session.isBootstrapping) {
+                return const SplashScreen();
+              }
+              if (_splashVisible) {
+                // Show splash screen even if not bootstrapping (first 2 seconds)
+                return const SplashScreen();
               }
               if (child != null) return child;
               return const Scaffold(

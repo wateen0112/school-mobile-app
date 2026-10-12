@@ -7,9 +7,15 @@ import '../../core/network/api_service.dart';
 import '../../core/network/exam_service.dart';
 
 class ExamController extends ChangeNotifier {
-  ExamController(this._service);
+  ExamController(
+    this._service, {
+    this.isTeacher = false,
+    this.teacherId,
+  });
 
   final ExamService _service;
+  final bool isTeacher;
+  final int? teacherId;
 
   List<QuizModel> _exams = [];
   bool _loading = false;
@@ -59,7 +65,17 @@ class ExamController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _exams = await _service.fetchExams(languageCode: languageCode);
+      var loaded = isTeacher
+          ? await _service.fetchTeacherExams(languageCode: languageCode)
+          : await _service.fetchExams(languageCode: languageCode);
+
+      if (isTeacher && teacherId != null) {
+        loaded = loaded
+            .where((exam) => exam.teacherId == teacherId)
+            .toList();
+      }
+
+      _exams = loaded;
     } catch (e) {
       _error = ApiService.failureFrom(e).message;
     } finally {

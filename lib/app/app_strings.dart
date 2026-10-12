@@ -16,6 +16,7 @@ class AppStrings {
       'onboardingBody':
           'Manage students, teachers, classes, attendance, fees, exams and parents from one mobile workspace.',
       'login': 'Login',
+      'welcomeBack': 'Welcome back',
       'email': 'Email',
       'password': 'Password',
       'apiBaseUrl': 'API base URL',
@@ -93,6 +94,13 @@ class AppStrings {
       'cms': 'CMS',
       'cmsSubtitle':
           'Create, edit, review, and manage all school content modules.',
+      'studentCmsSubtitle':
+          'Your schedule, grades, attendance and exams in one place.',
+      'studentPortal': 'My Portal',
+      'mySchedule': 'My Schedule',
+      'myGrades': 'My Grades',
+      'myAttendance': 'My Attendance',
+      'myExams': 'My Exams',
       'people': 'People',
       'academics': 'Academics',
       'finance': 'Finance',
@@ -230,6 +238,7 @@ class AppStrings {
       'onboardingBody':
           'إدارة الطلاب والمعلمين والفصول والحضور والرسوم والاختبارات وأولياء الأمور من تطبيق واحد.',
       'login': 'تسجيل الدخول',
+      'welcomeBack': 'مرحباً بكم مجدداً',
       'email': 'البريد الإلكتروني',
       'password': 'كلمة المرور',
       'apiBaseUrl': 'رابط واجهة البرمجة',
@@ -306,6 +315,12 @@ class AppStrings {
       'recentWorkflows': 'سير العمل',
       'cms': 'إدارة المحتوى',
       'cmsSubtitle': 'إنشاء وتعديل ومراجعة وإدارة كل وحدات النظام المدرسي.',
+      'studentCmsSubtitle': 'جدولك ودرجاتك وحضورك واختباراتك في مكان واحد.',
+      'studentPortal': 'بوابتي',
+      'mySchedule': 'جدولي',
+      'myGrades': 'درجاتي',
+      'myAttendance': 'حضوري',
+      'myExams': 'اختباراتي',
       'people': 'الأشخاص',
       'academics': 'الأكاديميات',
       'finance': 'المالية',

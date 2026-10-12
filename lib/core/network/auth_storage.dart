@@ -11,16 +11,10 @@ class AuthStorage {
   static const _tokenKey = 'auth.token';
   static const _userKey = 'auth.user';
   static const _roleKey = 'auth.role';
-  static const _baseUrlKey = 'api.base_url';
-
-  static final defaultBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-   
-  );
 
   final SharedPreferences _prefs;
 
-  String get baseUrl => _prefs.getString(_baseUrlKey) ?? defaultBaseUrl;
+  String get baseUrl => ApiConfig.defaultBaseUrl;
   String? get token => _prefs.getString(_tokenKey);
   Map<String, dynamic>? get user {
     final raw = _prefs.getString(_userKey);
@@ -39,13 +33,6 @@ class AuthStorage {
     return UserRole.values.firstWhere(
       (role) => role.name == value,
       orElse: () => UserRole.teacher,
-    );
-  }
-
-  Future<void> setBaseUrl(String value) async {
-    await _prefs.setString(
-      _baseUrlKey,
-      value.trim().replaceFirst(RegExp(r'/+$'), ''),
     );
   }
 

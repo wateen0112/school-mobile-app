@@ -1,18 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/data/school_repository.dart';
 import '../../core/models/app_models.dart';
 import '../../core/network/api_service.dart';
+import '../../core/state/session_controller.dart';
 import '../../widgets/shared_widgets.dart';
 
 class ModuleViewModel extends ChangeNotifier {
-  ModuleViewModel({required this.module, required SchoolRepository repository})
-    : _repository = repository {
+  ModuleViewModel({
+    required this.module,
+    required SchoolRepository repository,
+    this.teacherScoped = false,
+  }) : _repository = repository {
     load();
   }
 
   final ModuleSpec module;
   final SchoolRepository _repository;
+
+  /// When true (logged-in user is a teacher), the students screen filters
+  /// and list are scoped to the teacher's subject/section assignments
+  /// instead of returning the whole school.
+  final bool teacherScoped;
 
   bool loading = true;
   bool saving = false;
@@ -60,20 +70,27 @@ class ModuleViewModel extends ChangeNotifier {
         'parentDashboard',
         'attendance',
         'attendanceHistory',
+        'studentReports',
         'teacherComplaints',
         'studentComplaints',
         'parentComplaints',
         'teacherPaperExams',
         'studentPaperExamMarks',
         'parentPaperExamMarks',
+        'financeTabs',
       ].contains(module.specialView)) {
         records = const [];
       } else {
         records = module.key == 'students'
-            ? await _repository.filteredStudents(
-                gradeId: selectedGradeId,
-                sectionId: selectedSectionId,
-              )
+            ? (teacherScoped
+                  ? await _repository.teacherStudents(
+                      gradeId: selectedGradeId,
+                      sectionId: selectedSectionId,
+                    )
+                  : await _repository.filteredStudents(
+                      gradeId: selectedGradeId,
+                      sectionId: selectedSectionId,
+                    ))
             : await _repository.list(module);
       }
       empty = records.isEmpty && module.specialView == null;
@@ -159,16 +176,29 @@ class ModuleViewModel extends ChangeNotifier {
     filterOptionsLoading = true;
     _notify();
     try {
-      gradeFilterOptions = await _repository.optionsFor(
-        'grades',
-        languageCode: languageCode,
-      );
-      _studentFiltersLoaded = true;
-      if (selectedGradeId != null && selectedGradeId!.isNotEmpty) {
-        sectionFilterOptions = await _repository.sectionsForGrade(
-          selectedGradeId!,
+      if (teacherScoped) {
+        gradeFilterOptions = await _repository.teacherGradeOptions(
           languageCode: languageCode,
         );
+        _studentFiltersLoaded = true;
+        if (selectedGradeId != null && selectedGradeId!.isNotEmpty) {
+          sectionFilterOptions = await _repository.teacherSectionOptions(
+            selectedGradeId,
+            languageCode: languageCode,
+          );
+        }
+      } else {
+        gradeFilterOptions = await _repository.optionsFor(
+          'grades',
+          languageCode: languageCode,
+        );
+        _studentFiltersLoaded = true;
+        if (selectedGradeId != null && selectedGradeId!.isNotEmpty) {
+          sectionFilterOptions = await _repository.sectionsForGrade(
+            selectedGradeId!,
+            languageCode: languageCode,
+          );
+        }
       }
     } catch (e) {
       error = ApiService.failureFrom(e).message;
@@ -186,10 +216,15 @@ class ModuleViewModel extends ChangeNotifier {
     _notify();
     try {
       if (selectedGradeId != null) {
-        sectionFilterOptions = await _repository.sectionsForGrade(
-          selectedGradeId!,
-          languageCode: languageCode,
-        );
+        sectionFilterOptions = teacherScoped
+            ? await _repository.teacherSectionOptions(
+                selectedGradeId,
+                languageCode: languageCode,
+              )
+            : await _repository.sectionsForGrade(
+                selectedGradeId!,
+                languageCode: languageCode,
+              );
       }
       await load();
     } catch (e) {
@@ -222,6 +257,36 @@ class ModuleViewModel extends ChangeNotifier {
     BuildContext context,
   ) async {
     final languageCode = Localizations.localeOf(context).languageCode;
+    if (module.key == 'teacher-quizzes' ||
+        module.key == 'teacher-questions') {
+      final session = context.read<SessionController>();
+      final teacherId = session.authStorage.user?['id'];
+      final scoped = await _repository.teacherModalOptions(
+        languageCode: languageCode,
+        teacherId: teacherId,
+        needsQuizzes: module.fields.any(
+          (field) => field.dynamicOptionsKey == 'quizzes',
+        ),
+      );
+      if (module.key == 'teacher-quizzes') {
+        scoped['teacher'] = teacherId == null
+            ? const []
+            : [
+                FormOption(
+                  value: '$teacherId',
+                  label: session.user?.name ?? '$teacherId',
+                ),
+              ];
+      }
+      final result = <String, List<FormOption>>{};
+      for (final field in module.fields) {
+        final key = field.dynamicOptionsKey;
+        if (key == null) continue;
+        final options = scoped[key];
+        if (options != null) result[field.name] = options;
+      }
+      return result;
+    }
     final dynamicFields = module.fields.where(
       (field) => field.dynamicOptionsKey != null,
     );
