@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/models/app_models.dart';
+import 'app/app_state.dart';
 import 'core/navigation/notification_navigation.dart';
 import 'core/network/background_notification_service.dart';
 import 'core/router/app_navigator.dart';
@@ -36,6 +37,7 @@ class SchoolMobileApp extends StatefulWidget {
 
 class _SchoolMobileAppState extends State<SchoolMobileApp> {
   late final SessionController _session;
+  late final AppState _appState;
   late GoRouter _router;
   bool? _lastAuthenticated;
   UserRole? _lastRole;
@@ -45,6 +47,7 @@ class _SchoolMobileAppState extends State<SchoolMobileApp> {
   void initState() {
     super.initState();
     _session = SessionController(widget.prefs);
+    _appState = AppState(widget.prefs);
     _router = createRouter(_session, navigatorKey: appNavigatorKey);
     _lastAuthenticated = _session.isAuthenticated;
     _lastRole = _session.currentRole;
@@ -89,8 +92,11 @@ class _SchoolMobileAppState extends State<SchoolMobileApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: _session,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: _session),
+        ChangeNotifierProvider.value(value: _appState),
+      ],
       child: ListenableBuilder(
         listenable: _session,
         builder: (context, _) {

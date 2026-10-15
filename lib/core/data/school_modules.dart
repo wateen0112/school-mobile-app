@@ -1139,6 +1139,19 @@ const studentModules = <ModuleSpec>[
 
 const parentModules = <ModuleSpec>[
   ModuleSpec(
+    key: 'parent-dashboard',
+    title: 'Dashboard',
+    route: '/parent/dashboard',
+    icon: Icons.dashboard_rounded,
+    goal: 'Children summary cards and recent alerts.',
+    columns: ['Child', 'Grade', 'Alert'],
+    fields: [],
+    hasCreate: false,
+    hasEdit: false,
+    hasDelete: false,
+    specialView: 'parentDashboard',
+  ),
+  ModuleSpec(
     key: 'parent-transport',
     title: "My Child's Bus",
     route: '/parent/transport',
@@ -1151,19 +1164,6 @@ const parentModules = <ModuleSpec>[
     hasEdit: false,
     hasDelete: false,
     specialView: 'parentTransport',
-  ),
-  ModuleSpec(
-    key: 'parent-dashboard',
-    title: 'Dashboard',
-    route: '/parent/dashboard',
-    icon: Icons.dashboard_rounded,
-    goal: 'Children summary cards and recent alerts.',
-    columns: ['Child', 'Grade', 'Alert'],
-    fields: [],
-    hasCreate: false,
-    hasEdit: false,
-    hasDelete: false,
-    specialView: 'parentDashboard',
   ),
   ModuleSpec(
     key: 'parent-schedule',

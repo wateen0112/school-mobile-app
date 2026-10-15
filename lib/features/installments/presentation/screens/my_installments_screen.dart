@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../app/app_state.dart';
 import '../../../../core/state/session_controller.dart';
 import '../../../../core/localization/module_localization.dart';
 import '../../../../core/widgets/refreshable_content.dart';
@@ -130,6 +131,22 @@ class _MyInstallmentsBody extends StatefulWidget {
 }
 
 class _MyInstallmentsBodyState extends State<_MyInstallmentsBody> {
+  int? _lastSelectedChildId;
+  bool _initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final selected = context.watch<AppState>().selectedChildId;
+    if (_initialized && selected == _lastSelectedChildId) return;
+    _initialized = true;
+    _lastSelectedChildId = selected;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<InstallmentProvider>().setSelectedStudent(selected);
+    });
+  }
+
   @override
   void initState() {
     super.initState();

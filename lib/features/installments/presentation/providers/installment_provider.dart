@@ -32,6 +32,22 @@ class InstallmentProvider extends ChangeNotifier {
   List<ParentInstallmentGroup> _allParentGroups = [];
   List<ParentInstallmentGroup> get parentGroups => _filteredParentGroups;
 
+  /// When set (parent role), all lists/summaries are scoped to this student.
+  int? _selectedStudentId;
+  int? get selectedStudentId => _selectedStudentId;
+
+  void setSelectedStudent(int? studentId) {
+    if (_selectedStudentId == studentId) return;
+    _selectedStudentId = studentId;
+    notifyListeners();
+  }
+
+  List<ParentInstallmentGroup> get _visibleGroups => _allParentGroups
+      .where(
+        (g) => _selectedStudentId == null || g.studentId == _selectedStudentId,
+      )
+      .toList();
+
   List<InstallmentPlan> _plans = [];
   List<InstallmentPlan> get plans => _plans;
 
@@ -48,14 +64,14 @@ class InstallmentProvider extends ChangeNotifier {
   /// All installments (unfiltered), across children for parent role.
   List<MyInstallment> get allInstallments {
     if (isParent) {
-      return _allParentGroups.expand((g) => g.installments).toList();
+      return _visibleGroups.expand((g) => g.installments).toList();
     }
     return _allMyInstallments;
   }
 
   InstallmentSummary get summary {
     final all = isParent
-        ? _allParentGroups.expand((g) => g.installments)
+        ? _visibleGroups.expand((g) => g.installments)
         : _allMyInstallments;
     return _calculateSummary(all);
   }
@@ -65,7 +81,7 @@ class InstallmentProvider extends ChangeNotifier {
   }
 
   List<ParentInstallmentGroup> get _filteredParentGroups {
-    return _allParentGroups
+    return _visibleGroups
         .map((group) {
           final filtered = group.installments.where(_matchesFilter).toList();
           if (filtered.isEmpty) return null;

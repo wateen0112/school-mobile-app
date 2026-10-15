@@ -56,6 +56,7 @@ class SalaryHistoryItem {
     this.paymentMethod,
     this.notes,
     required this.isOverdue,
+    this.source = 'monthly',
   });
 
   final int id;
@@ -68,6 +69,9 @@ class SalaryHistoryItem {
   final String? paymentMethod;
   final String? notes;
   final bool isOverdue;
+
+  /// monthly | hours | custom
+  final String source;
 
   bool get isPaid => status == 'paid';
 
@@ -83,17 +87,55 @@ class SalaryHistoryItem {
         paymentMethod: json['payment_method']?.toString(),
         notes: json['notes']?.toString(),
         isOverdue: _asBool(json['is_overdue']),
+        source: json['source']?.toString() ?? 'monthly',
+      );
+}
+
+class CustomInstallment {
+  const CustomInstallment({
+    required this.id,
+    this.title,
+    required this.amount,
+    required this.dueDate,
+    required this.status,
+  });
+
+  final int id;
+  final String? title;
+  final double amount;
+  final String dueDate;
+  final String status;
+
+  bool get isPaid => status == 'paid';
+
+  factory CustomInstallment.fromJson(Map<String, dynamic> json) =>
+      CustomInstallment(
+        id: _asInt(json['id'], 0),
+        title: json['title']?.toString(),
+        amount: _asDouble(json['amount']),
+        dueDate: json['due_date']?.toString() ?? '',
+        status: json['status']?.toString() ?? 'pending',
       );
 }
 
 class TeacherSalaryData {
   const TeacherSalaryData({
     this.baseSalary,
+    this.salaryType = 'monthly',
+    this.hourRate,
+    this.customSalaryAmount,
+    this.customInstallments,
     this.nextDue,
     required this.history,
   });
 
   final double? baseSalary;
+
+  /// monthly | hourly | custom
+  final String salaryType;
+  final double? hourRate;
+  final double? customSalaryAmount;
+  final List<CustomInstallment>? customInstallments;
   final TeacherSalaryNextDue? nextDue;
   final List<SalaryHistoryItem> history;
 
@@ -101,12 +143,33 @@ class TeacherSalaryData {
     final rawNext = json['next_due'];
     final rawHistory = json['history'];
     final base = json['base_salary'];
+    final rawInstallments = json['custom_installments'];
+    final hourRate = json['hour_rate'];
+    final customAmount = json['custom_salary_amount'];
     return TeacherSalaryData(
       baseSalary: base is num
           ? base.toDouble()
           : base is String
               ? double.tryParse(base)
               : null,
+      salaryType: json['salary_type']?.toString() ?? 'monthly',
+      hourRate: hourRate is num
+          ? hourRate.toDouble()
+          : hourRate is String
+              ? double.tryParse(hourRate)
+              : null,
+      customSalaryAmount: customAmount is num
+          ? customAmount.toDouble()
+          : customAmount is String
+              ? double.tryParse(customAmount)
+              : null,
+      customInstallments: rawInstallments is List
+          ? rawInstallments
+              .whereType<Map>()
+              .map((e) =>
+                  CustomInstallment.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+          : null,
       nextDue: rawNext is Map<String, dynamic>
           ? TeacherSalaryNextDue.fromJson(rawNext)
           : null,

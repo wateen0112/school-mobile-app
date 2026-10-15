@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/app_state.dart';
 import '../../core/localization/module_localization.dart';
 import '../../core/network/api_service.dart';
 import '../../core/state/session_controller.dart';
@@ -106,12 +107,22 @@ class _ParentFinanceContentState extends State<ParentFinanceContent> {
     }
 
     final isAr = appIsArabic(context);
+    final appState = context.watch<AppState>();
+    final selectedId = appState.selectedChildId;
+    final filtered = selectedId == null
+        ? _children
+        : _children.where((child) {
+            final id = child is Map ? child['id'] ?? child['student_id'] : null;
+            if (id == null) return false;
+            return id.toString() == selectedId.toString();
+          }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _OverallSummary(summary: _summary, isAr: isAr),
         const SizedBox(height: 12),
-        for (final child in _children) ...[
+        for (final child in filtered) ...[
           _ChildFinanceCard(child: child, isAr: isAr),
           const SizedBox(height: 12),
         ],

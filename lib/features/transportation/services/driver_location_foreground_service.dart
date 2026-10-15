@@ -22,6 +22,7 @@ import 'gps_queue_store.dart';
 /// timer path (DriverGpsService fallback) continues to be used.
 ///
 /// Must be initialized once in `main()` before `runApp`.
+@pragma('vm:entry-point')
 class DriverLocationForegroundService {
   DriverLocationForegroundService._();
 

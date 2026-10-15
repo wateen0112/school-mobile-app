@@ -132,6 +132,10 @@ class _MySalaryBodyState extends State<_MySalaryBody> {
                 provider: provider,
                 isArabic: isArabic,
               ),
+              if (data.salaryType != 'monthly') ...[
+                const SizedBox(height: 16),
+                _ContractCard(data: data, isArabic: isArabic),
+              ],
               const SizedBox(height: 16),
               _SummaryCard(provider: provider, isArabic: isArabic),
               const SizedBox(height: 20),
@@ -256,9 +260,10 @@ class _HeroBanner extends StatelessWidget {
                                   const _PulseDot(),
                                   const SizedBox(width: 6),
                                   Text(
-                                    isArabic
-                                        ? 'الراتب الشهري'
-                                        : 'Monthly Salary',
+                                    _salaryTypeLabel(
+                                      provider.data?.salaryType ?? 'monthly',
+                                      isArabic,
+                                    ),
                                     style: const TextStyle(
                                       color: Color(0xffe0f2f1),
                                       fontSize: 11,
@@ -334,7 +339,11 @@ class _HeroBanner extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isArabic ? 'الراتب الأساسي' : 'Base Salary',
+                              provider.data?.salaryType == 'hourly'
+                                  ? (isArabic ? 'سعر الساعة' : 'Hour Rate')
+                                  : provider.data?.salaryType == 'custom'
+                                      ? (isArabic ? 'قيمة العقد' : 'Contract Value')
+                                      : (isArabic ? 'الراتب الأساسي' : 'Base Salary'),
                               style: const TextStyle(
                                 color: Color(0xff80cbc4),
                                 fontSize: 11,
@@ -344,8 +353,19 @@ class _HeroBanner extends StatelessWidget {
                             Row(
                               children: [
                                 Text(
-                                  base != null
-                                      ? _formatThousands(base)
+                                  (provider.data?.salaryType == 'hourly'
+                                          ? provider.data?.hourRate
+                                          : provider.data?.salaryType == 'custom'
+                                              ? provider.data?.customSalaryAmount
+                                              : base) !=
+                                      null
+                                      ? _formatThousands(
+                                          provider.data?.salaryType == 'hourly'
+                                              ? provider.data!.hourRate!
+                                              : provider.data?.salaryType == 'custom'
+                                                  ? provider.data!.customSalaryAmount!
+                                                  : base!,
+                                        )
                                       : '--',
                                   style: const TextStyle(
                                     color: Colors.white,
@@ -420,6 +440,208 @@ class _HeroBanner extends StatelessWidget {
     final list = isArabic ? monthsAr : monthsEn;
     final name = month >= 1 && month <= 12 ? list[month - 1] : '?';
     return '$name $year';
+  }
+}
+
+/// Shows the teacher's salary contract details for hourly & custom types:
+/// hour rate, contract value, and (for custom) the installment schedule.
+class _ContractCard extends StatelessWidget {
+  const _ContractCard({required this.data, required this.isArabic});
+
+  final TeacherSalaryData data;
+  final bool isArabic;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _Palette.slate100),
+        boxShadow: _Palette.soft(),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: _Palette.amber500,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isArabic ? 'تفاصيل العقد' : 'Contract Details',
+                style: const TextStyle(
+                  color: _Palette.slate800,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _Palette.amber100,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  _salaryTypeLabel(data.salaryType, isArabic),
+                  style: const TextStyle(
+                    color: _Palette.amber900,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (data.salaryType == 'hourly' && data.hourRate != null)
+            _contractRow(
+              icon: Icons.schedule_rounded,
+              label: isArabic ? 'سعر الساعة' : 'Hour rate',
+              value:
+                  '${_formatThousands(data.hourRate!)} ${isArabic ? 'ر.س' : 'SAR'}',
+              hint: isArabic
+                  ? 'يُحسب الراتب = الساعات المسجلة × سعر الساعة'
+                  : 'Salary = logged hours × hour rate',
+            ),
+          if (data.salaryType == 'custom') ...[
+            if (data.customSalaryAmount != null)
+              _contractRow(
+                icon: Icons.request_quote_rounded,
+                label: isArabic ? 'المبلغ الإجمالي' : 'Total amount',
+                value:
+                    '${_formatThousands(data.customSalaryAmount!)} ${isArabic ? 'ر.س' : 'SAR'}',
+              ),
+            if (data.customInstallments != null &&
+                data.customInstallments!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                isArabic ? 'جدول الأقساط' : 'Installment schedule',
+                style: const TextStyle(
+                  color: _Palette.slate500,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              for (final inst in data.customInstallments!) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _Palette.slate100.withValues(alpha: .5),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        inst.isPaid
+                            ? Icons.check_circle_rounded
+                            : Icons.pending_rounded,
+                        size: 16,
+                        color: inst.isPaid
+                            ? _Palette.emerald500
+                            : _Palette.amber500,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          inst.title ??
+                              (isArabic
+                                  ? 'قسط ${inst.dueDate}'
+                                  : 'Installment ${inst.dueDate}'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _Palette.slate800,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${_formatThousands(inst.amount)} ${isArabic ? 'ر.س' : 'SAR'}',
+                        style: const TextStyle(
+                          color: _Palette.slate800,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _contractRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    String? hint,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: _Palette.slate400),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: _Palette.slate500,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              value,
+              style: const TextStyle(
+                color: _Palette.slate800,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        if (hint != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            hint,
+            style: const TextStyle(
+              color: _Palette.slate400,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+String _salaryTypeLabel(String type, bool isArabic) {
+  switch (type) {
+    case 'hourly':
+      return isArabic ? 'راتب بالساعات' : 'Hourly Salary';
+    case 'custom':
+      return isArabic ? 'راتب مقسّط' : 'Installment Salary';
+    default:
+      return isArabic ? 'الراتب الشهري' : 'Monthly Salary';
   }
 }
 
@@ -729,18 +951,52 @@ class _HistoryCard extends StatelessWidget {
                               children: [
                                 _StatusBadge(item: item, isArabic: isArabic),
                                 const SizedBox(height: 8),
-                                Text(
-                                  '$monthName ${item.periodYear}',
-                                  style: const TextStyle(
-                                    color: _Palette.slate800,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w800,
+                                Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      '$monthName ${item.periodYear}',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: _Palette.slate800,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
+                                  if (item.source != 'monthly') ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: item.source == 'hours'
+                                            ? _Palette.amber100
+                                            : _Palette.violetLight,
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        item.source == 'hours'
+                                            ? (isArabic ? 'ساعات' : 'Hours')
+                                            : (isArabic ? 'قسط' : 'Installment'),
+                                        style: TextStyle(
+                                          color: item.source == 'hours'
+                                              ? _Palette.amber900
+                                              : _Palette.violet,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
                           ),
-                          Column(
+                        ),
+                        Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(

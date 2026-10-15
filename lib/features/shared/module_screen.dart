@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/app_state.dart';
 import '../../core/localization/module_localization.dart';
 import '../../core/localization/error_messages.dart';
 import '../../core/data/school_modules.dart';
@@ -119,7 +120,8 @@ class ModuleScreen extends StatelessWidget {
                 if (module.specialView != 'profile' &&
                     module.specialView != 'studentReports' &&
                     module.specialView != 'studentDashboard' &&
-                    module.specialView != 'teacherDashboard')
+                    module.specialView != 'teacherDashboard' &&
+                    module.specialView != 'parentDashboard')
                   _ModuleHeader(module: module),
                 if (module.key == 'students') ...[
                   const SizedBox(height: 14),
@@ -1833,7 +1835,13 @@ class ParentAttendanceContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (viewModel.records.isEmpty) {
+    final selectedChildId = context.watch<AppState>().selectedChildId;
+    final records = selectedChildId == null
+        ? viewModel.records
+        : viewModel.records
+            .where((r) => '${r.raw['student_id']}' == '$selectedChildId')
+            .toList();
+    if (records.isEmpty) {
       return IllustratedEmptyState(
         title: t(context, 'noData'),
         message: appIsArabic(context)
@@ -1847,7 +1855,7 @@ class ParentAttendanceContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final record in viewModel.records) ...[
+        for (final record in records) ...[
           _AttendanceHistoryCard(record: record),
           const SizedBox(height: 10),
         ],

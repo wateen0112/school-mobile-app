@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../app/app_state.dart';
 import '../../../../core/state/session_controller.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
@@ -51,6 +52,15 @@ class _ParentTransportContentState extends State<ParentTransportContent> {
     }
   }
 
+  List<ParentChildTransport> getFilteredChildren() {
+    final appState = context.watch<AppState>();
+    final selectedId = appState.selectedChildId;
+    if (selectedId == null) return _children;
+    return _children
+        .where((child) => child.studentId == selectedId)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -87,7 +97,7 @@ class _ParentTransportContentState extends State<ParentTransportContent> {
                 ),
               ),
             ),
-          ..._children.map((child) => _ChildTransportCard(
+          ...getFilteredChildren().map((child) => _ChildTransportCard(
                 child: child,
                 onOpen: () => context.push('/parent/transport-trip', extra: child.studentId),
               )),

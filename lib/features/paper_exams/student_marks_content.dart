@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/data/school_repository.dart';
+import '../../app/app_state.dart';
 import '../../core/models/app_models.dart';
 import '../../core/network/api_service.dart';
 import '../../core/state/session_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/loading_shimmer.dart';
-import '../../widgets/shared_widgets.dart';
 
 String _displayName(dynamic value, {String languageCode = 'en'}) {
   if (value == null) return '-';
@@ -51,8 +50,61 @@ class _StudentPaperExamMarksContentState
   String? _error;
   String? _selectedSubjectId;
 
+  /// Marks grouped by subject. For parents the API groups marks by student,
+  /// so we pick the marks of [AppState.selectedChildId] and re-group them by
+  /// subject to match the UI.
+  Map<String, dynamic> get _visibleMarksData {
+    final role = context.read<SessionController>().currentRole;
+    if (role != UserRole.parent) return _marksData;
+    final selectedChildId = context.watch<AppState>().selectedChildId;
+    if (selectedChildId == null) return const {};
+    final childMarks = _marksData['$selectedChildId'];
+    final list = childMarks is List ? childMarks : const [];
+    final grouped = <String, List<dynamic>>{};
+    for (final mark in list) {
+      final map = mark is Map ? Map<String, dynamic>.from(mark) : null;
+      final exam = map?['paper_exam'] is Map
+          ? Map<String, dynamic>.from(map!['paper_exam'] as Map)
+          : null;
+      final subjectId = exam?['subject_id'];
+      if (subjectId == null) continue;
+      grouped.putIfAbsent('$subjectId', () => []).add(mark);
+    }
+    return grouped;
+  }
+
   // Subject names from the grouped data
-  List<_SubjectSummary> _subjects = [];
+  List<_SubjectSummary> _buildSubjects(Map<String, dynamic> data) {
+    final subjects = <_SubjectSummary>[];
+    for (final entry in data.entries) {
+      final marks = entry.value is List ? entry.value as List : <dynamic>[];
+      if (marks.isEmpty) continue;
+      final first = marks.first is Map
+          ? Map<String, dynamic>.from(marks.first as Map)
+          : <String, dynamic>{};
+      final exam = first['paper_exam'] is Map
+          ? Map<String, dynamic>.from(first['paper_exam'] as Map)
+          : <String, dynamic>{};
+      final subject = exam['subject'] is Map
+          ? Map<String, dynamic>.from(exam['subject'] as Map)
+          : <String, dynamic>{};
+      subjects.add(
+        _SubjectSummary(
+          subjectId: int.tryParse(entry.key) ?? 0,
+          subjectName: _displayName(
+            subject,
+            languageCode: Localizations.localeOf(context).languageCode,
+          ),
+          totalMarks: marks.fold<double>(
+            0,
+            (sum, m) => sum + _asDouble(m['marks_obtained']),
+          ),
+          examCount: marks.length,
+        ),
+      );
+    }
+    return subjects;
+  }
 
   @override
   void initState() {
@@ -70,36 +122,6 @@ class _StudentPaperExamMarksContentState
       final body = await _api.get('/paper-exam-marks/my');
       final data = body['data'];
       _marksData = data is Map ? Map<String, dynamic>.from(data) : {};
-
-      // Build subject summaries
-      _subjects = [];
-      for (final entry in _marksData.entries) {
-        final marks = entry.value is List ? entry.value as List : <dynamic>[];
-        if (marks.isEmpty) continue;
-        final first = marks.first is Map
-            ? Map<String, dynamic>.from(marks.first as Map)
-            : <String, dynamic>{};
-        final exam = first['paper_exam'] is Map
-            ? Map<String, dynamic>.from(first['paper_exam'] as Map)
-            : <String, dynamic>{};
-        final subject = exam['subject'] is Map
-            ? Map<String, dynamic>.from(exam['subject'] as Map)
-            : <String, dynamic>{};
-        _subjects.add(
-          _SubjectSummary(
-            subjectId: int.tryParse(entry.key) ?? 0,
-            subjectName: _displayName(
-              subject,
-              languageCode: Localizations.localeOf(context).languageCode,
-            ),
-            totalMarks: marks.fold<double>(
-              0,
-              (sum, m) => sum + _asDouble(m['marks_obtained']),
-            ),
-            examCount: marks.length,
-          ),
-        );
-      }
     } catch (error) {
       _error = ApiService.failureFrom(error).message;
     } finally {
@@ -111,6 +133,12 @@ class _StudentPaperExamMarksContentState
   Widget build(BuildContext context) {
     final languageCode = Localizations.localeOf(context).languageCode;
     final isArabic = languageCode == 'ar';
+    final marksData = _visibleMarksData;
+    final subjects = _buildSubjects(marksData);
+    final selectedSubjectId =
+        subjects.any((s) => '${s.subjectId}' == _selectedSubjectId)
+            ? _selectedSubjectId
+            : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -131,7 +159,7 @@ class _StudentPaperExamMarksContentState
               ),
             ),
           )
-        else if (_subjects.isEmpty)
+        else if (subjects.isEmpty)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -180,9 +208,9 @@ class _StudentPaperExamMarksContentState
             ),
           ),
           const SizedBox(height: 12),
-          if (_selectedSubjectId == null)
+          if (selectedSubjectId == null)
             // Subject list
-            for (final subject in _subjects) ...[
+            for (final subject in subjects) ...[
               Card(
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
@@ -256,17 +284,29 @@ class _StudentPaperExamMarksContentState
             ]
           else
             // Detailed marks for selected subject
-            ..._buildSubjectDetail(isArabic, languageCode),
+            ..._buildSubjectDetail(
+              isArabic,
+              languageCode,
+              marksData,
+              subjects,
+              selectedSubjectId,
+            ),
         ],
       ],
     );
   }
 
-  List<Widget> _buildSubjectDetail(bool isArabic, String languageCode) {
-    final subjectMarks = _marksData[_selectedSubjectId] as List? ?? [];
-    final subject = _subjects.firstWhere(
-      (s) => '${s.subjectId}' == _selectedSubjectId,
-      orElse: () => _subjects.first,
+  List<Widget> _buildSubjectDetail(
+    bool isArabic,
+    String languageCode,
+    Map<String, dynamic> marksData,
+    List<_SubjectSummary> subjects,
+    String? selectedSubjectId,
+  ) {
+    final subjectMarks = marksData[selectedSubjectId] as List? ?? [];
+    final subject = subjects.firstWhere(
+      (s) => '${s.subjectId}' == selectedSubjectId,
+      orElse: () => subjects.first,
     );
 
     return [

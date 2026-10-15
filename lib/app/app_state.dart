@@ -22,13 +22,15 @@ class AppState extends ChangeNotifier {
       token = _prefs.getString(_tokenKey),
       userName = _prefs.getString(_userNameKey),
       userType = _prefs.getString(_userTypeKey),
-      hasSeenOnboarding = _prefs.getBool(_onboardingKey) ?? false;
+      hasSeenOnboarding = _prefs.getBool(_onboardingKey) ?? false,
+      selectedChildId = _prefs.getInt(_selectedChildIdKey);
 
   static const _localeKey = 'locale';
   static const _tokenKey = 'access_token';
   static const _userNameKey = 'user_name';
   static const _userTypeKey = 'user_type';
   static const _onboardingKey = 'has_seen_onboarding';
+  static const _selectedChildIdKey = 'selected_child_id';
 
   final SharedPreferences _prefs;
 
@@ -37,6 +39,7 @@ class AppState extends ChangeNotifier {
   String? userName;
   String? userType;
   bool hasSeenOnboarding;
+  int? selectedChildId;
 
   bool get isAuthenticated => token != null && token!.isNotEmpty;
   bool get isArabic => locale.languageCode == 'ar';
@@ -67,13 +70,25 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setSelectedChild(int? childId) async {
+    selectedChildId = childId;
+    if (childId == null) {
+      await _prefs.remove(_selectedChildIdKey);
+    } else {
+      await _prefs.setInt(_selectedChildIdKey, childId);
+    }
+    notifyListeners();
+  }
+
   Future<void> signOut() async {
     token = null;
     userName = null;
     userType = null;
+    selectedChildId = null;
     await _prefs.remove(_tokenKey);
     await _prefs.remove(_userNameKey);
     await _prefs.remove(_userTypeKey);
+    await _prefs.remove(_selectedChildIdKey);
     notifyListeners();
   }
 }

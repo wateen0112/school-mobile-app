@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/app_state.dart';
 import '../../core/data/school_repository.dart';
 import '../../core/models/app_models.dart';
 import '../../core/network/api_service.dart';
@@ -1212,10 +1213,20 @@ class _ParentEvaluationsContentState extends State<ParentEvaluationsContent> {
   void initState() {
     super.initState();
     _api = context.read<SessionController>().api;
+    context.read<AppState>().addListener(_onSelectedChildChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadReport());
   }
 
+  @override
+  void dispose() {
+    context.read<AppState>().removeListener(_onSelectedChildChanged);
+    super.dispose();
+  }
+
+  void _onSelectedChildChanged() => _loadReport();
+
   Future<void> _loadReport() async {
+    final selectedChildId = context.read<AppState>().selectedChildId;
     setState(() {
       _loading = true;
       _error = null;
@@ -1231,7 +1242,11 @@ class _ParentEvaluationsContentState extends State<ParentEvaluationsContent> {
 
       final body = await _api.get(
         path,
-        query: {'month': _selectedMonth, 'year': _selectedYear},
+        query: {
+          'month': _selectedMonth,
+          'year': _selectedYear,
+          if (selectedChildId != null) 'student_id': selectedChildId,
+        },
         options: Options(receiveTimeout: const Duration(seconds: 60)),
       );
 
@@ -1325,7 +1340,13 @@ class _ParentEvaluationsContentState extends State<ParentEvaluationsContent> {
   @override
   Widget build(BuildContext context) {
     final languageCode = Localizations.localeOf(context).languageCode;
-    final children = _reportData?['children'] as List<dynamic>? ?? [];
+    final selectedChildId = context.watch<AppState>().selectedChildId;
+    final allChildren = _reportData?['children'] as List<dynamic>? ?? [];
+    final children = selectedChildId == null
+        ? allChildren
+        : allChildren
+            .where((c) => c is Map && c['id'] == selectedChildId)
+            .toList();
 
     return ListView(
       shrinkWrap: true,

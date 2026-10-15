@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/app_state.dart';
 import '../../features/notifications/notification_dropdown.dart';
 import '../data/school_modules.dart';
 import '../localization/module_localization.dart';
@@ -25,7 +26,9 @@ class AppShell extends StatelessWidget {
     final currentPath = GoRouterState.of(context).uri.path;
     final groups = navGroupsForRole(session.currentRole);
     final mobileItems = _primaryMobileItems(session.currentRole);
-    final showBottomBar = _isBottomBarRoute(mobileItems, currentPath);
+    final isParent = session.currentRole == UserRole.parent;
+    final showBottomBar =
+        !isParent && _isBottomBarRoute(mobileItems, currentPath);
     final mobileSelectedIndex =
         navigationShell?.currentIndex ??
         _selectedIndex(mobileItems, currentPath);
@@ -40,15 +43,21 @@ class AppShell extends StatelessWidget {
             appBar: AppBar(
               toolbarHeight: 64,
               automaticallyImplyLeading: false,
-              leading: Builder(
-                builder: (context) => _ShellIconButton(
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                  icon: Icons.menu_rounded,
-                  tooltip: appIsArabic(context)
-                      ? 'فتح القائمة'
-                      : 'Open menu',
-                ),
-              ),
+              centerTitle: true,
+              title: isParent ? const _ParentChildSwitcher() : null,
+              leading: isParent
+                  ? (currentPath == session.homeRoute
+                      ? null
+                      : _ParentBackButton(homeRoute: session.homeRoute))
+                  : Builder(
+                      builder: (context) => _ShellIconButton(
+                        onPressed: () => Scaffold.of(context).openDrawer(),
+                        icon: Icons.menu_rounded,
+                        tooltip: appIsArabic(context)
+                            ? 'فتح القائمة'
+                            : 'Open menu',
+                      ),
+                    ),
               actions: [
                 _NotificationDropdown(session: session),
                 PopupMenuButton<String>(
@@ -100,7 +109,9 @@ class AppShell extends StatelessWidget {
                 const SizedBox(width: 10),
               ],
             ),
-            drawer: _RoleDrawer(groups: groups, currentPath: currentPath),
+            drawer: isParent
+                ? null
+                : _RoleDrawer(groups: groups, currentPath: currentPath),
             body: child,
             floatingActionButton: session.showChucker
                 ? FloatingActionButton.small(
@@ -550,6 +561,236 @@ class _BottomBarItemState extends State<_BottomBarItem> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ParentBackButton extends StatelessWidget {
+  const _ParentBackButton({required this.homeRoute});
+
+  final String homeRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ShellIconButton(
+      onPressed: () {
+        final router = GoRouter.of(context);
+        if (router.canPop()) {
+          router.pop();
+        } else {
+          router.go(homeRoute);
+        }
+      },
+      icon: Icons.arrow_back_rounded,
+      tooltip: appIsArabic(context) ? 'رجوع' : 'Back',
+    );
+  }
+}
+
+/// Parent-only app bar widget that always shows the currently selected
+/// child and lets the parent switch the active child from anywhere.
+class _ParentChildSwitcher extends StatefulWidget {
+  const _ParentChildSwitcher();
+
+  @override
+  State<_ParentChildSwitcher> createState() => _ParentChildSwitcherState();
+}
+
+class _ParentChildSwitcherState extends State<_ParentChildSwitcher> {
+  List<Map<String, dynamic>> _children = [];
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    try {
+      final api = context.read<SessionController>().api;
+      final body = await api.get('/Students');
+      final data = body['data'];
+      if (!mounted) return;
+      setState(() {
+        _children = data is List
+            ? data
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList()
+            : [];
+        _loaded = true;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loaded = true);
+    }
+  }
+
+  Map<String, dynamic>? _selectedChild(int? selectedId) {
+    if (selectedId == null) return null;
+    for (final child in _children) {
+      if ('${child['id']}' == '$selectedId') return child;
+    }
+    return null;
+  }
+
+  Future<void> _openSwitcher(int? selectedId) async {
+    final isArabic = appIsArabic(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.borderColor,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  isArabic ? 'اختر الابن' : 'Select child',
+                  style: Theme.of(sheetContext).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 10),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final child in _children)
+                        Builder(
+                          builder: (context) {
+                            final id = child['id'];
+                            final selected =
+                                selectedId != null && '$id' == '$selectedId';
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: selected
+                                    ? AppTheme.primary
+                                    : AppTheme.cloud,
+                                child: Icon(
+                                  Icons.child_care_rounded,
+                                  color: selected
+                                      ? Colors.white
+                                      : AppTheme.primary,
+                                ),
+                              ),
+                              title: Text(
+                                '${child['name'] ?? ''}',
+                                style: TextStyle(
+                                  fontWeight: selected
+                                      ? FontWeight.w800
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                              trailing: selected
+                                  ? const Icon(
+                                      Icons.check_circle_rounded,
+                                      color: AppTheme.primary,
+                                    )
+                                  : null,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              onTap: () {
+                                if (id is int) {
+                                  context
+                                      .read<AppState>()
+                                      .setSelectedChild(id);
+                                }
+                                Navigator.of(sheetContext).pop();
+                              },
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedId = context.watch<AppState>().selectedChildId;
+    final selected = _selectedChild(selectedId);
+    final isArabic = appIsArabic(context);
+
+    final label = selected != null
+        ? '${selected['name'] ?? ''}'
+        : !_loaded
+            ? '…'
+            : (isArabic ? 'اختر الابن' : 'Select child');
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _children.isEmpty ? null : () => _openSwitcher(selectedId),
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 220),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xCCE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primary.withValues(alpha: .10),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.child_care_rounded,
+                size: 20,
+                color: AppTheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.ink,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 18,
+                color: AppTheme.muted,
+              ),
+            ],
           ),
         ),
       ),

@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/app_state.dart';
+import '../../core/data/school_modules.dart';
 import '../../core/localization/module_localization.dart';
+import '../../core/models/app_models.dart';
 import '../../core/network/api_service.dart';
 import '../../core/state/session_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/living_icons.dart';
 import '../../core/widgets/refreshable_content.dart';
 
 /// Shared shell that fetches a role dashboard endpoint and renders the
@@ -1537,312 +1542,279 @@ class _AvailabilityTile extends StatelessWidget {
   }
 }
 
-/// Parent dashboard: children summary cards, finance totals, notifications.
+/// Parent dashboard: child selector at the top, drawer nav items as a 3-column
+/// action grid directly below it.
 Widget parentDashboardBuilder(
   BuildContext context,
   Map<String, dynamic> data,
   Future<void> Function() onRefresh,
 ) {
   final isArabic = appIsArabic(context);
-  final parent = _map(data['parent']);
-  final summary = _map(data['summary']);
   final children = _list(data['children']);
-  final notifications = _map(data['notifications']);
 
-  final parentName = _str(parent['name']);
-  final childrenCount = _num(summary['children_count']).toInt();
-  final totalPaid = _num(summary['total_paid']);
-  final totalRemaining = _num(summary['total_remaining']);
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _DashHeader(
-        icon: Icons.family_restroom_rounded,
-        title: isArabic
-            ? 'أهلاً${parentName.isNotEmpty ? '، $parentName' : ''}'
-            : 'Hello${parentName.isNotEmpty ? ', $parentName' : ''}',
-        subtitle: isArabic
-            ? 'ملخص أداء أبنائك على بعد لمسة'
-            : "Your children's summary at a glance",
-      ),
-      const SizedBox(height: 14),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          _StatChip(
-            value: '$childrenCount',
-            label: isArabic ? 'الأبناء' : 'Children',
-            icon: Icons.child_care_rounded,
-            color: AppTheme.primary,
-          ),
-          _StatChip(
-            value: totalPaid.toStringAsFixed(0),
-            label: isArabic ? 'المدفوع' : 'Paid',
-            icon: Icons.check_circle_rounded,
-            color: AppTheme.mint,
-          ),
-          _StatChip(
-            value: totalRemaining.toStringAsFixed(0),
-            label: isArabic ? 'المتبقي' : 'Remaining',
-            icon: Icons.account_balance_wallet_rounded,
-            color: AppTheme.coral,
-          ),
-        ],
-      ),
-      const SizedBox(height: 14),
-      if (children.isEmpty)
-        NoDataWidget(
-          icon: Icons.child_care_rounded,
-          title: isArabic ? 'لا يوجد أبناء مرتبطون' : 'No linked children',
-          message: isArabic
-              ? 'عند ربط الأبناء ستظهر ملخصاتهم هنا.'
-              : 'Linked children summaries will appear here.',
-        )
-      else
-        for (final child in children) ...[
-          _ChildCard(child: child, isArabic: isArabic),
-          const SizedBox(height: 12),
-        ],
-      _NotificationsCard(
-        notifications: _list(notifications['recent']),
-        isArabic: isArabic,
-      ),
-    ],
-  );
+  return _ParentDashboardBody(isArabic: isArabic, children: children);
 }
 
-class _ChildCard extends StatelessWidget {
-  const _ChildCard({required this.child, required this.isArabic});
+class _ParentDashboardBody extends StatefulWidget {
+  const _ParentDashboardBody({
+    required this.isArabic,
+    required this.children,
+  });
 
-  final Map<String, dynamic> child;
   final bool isArabic;
+  final List<dynamic> children;
+
+  @override
+  State<_ParentDashboardBody> createState() => _ParentDashboardBodyState();
+}
+
+class _ParentDashboardBodyState extends State<_ParentDashboardBody> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final appState = context.read<AppState>();
+      if (appState.selectedChildId == null && widget.children.isNotEmpty) {
+        final firstChild = _map(widget.children.first);
+        final firstId = _num(firstChild['id']).toInt();
+        if (firstId != 0) {
+          appState.setSelectedChild(firstId);
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final attendance = _map(child['attendance']);
-    final grades = _map(child['grades']);
-    final finance = _map(child['finance']);
-    final exams = _list(child['upcoming_exams']);
-    final todayAttendance = child['today_attendance'];
+    final appState = context.watch<AppState>();
+    final items = _parentActionItems(context);
 
-    final info = [
-      if (_str(child['grade_name']).isNotEmpty) _str(child['grade_name']),
-      if (_str(child['classroom_name']).isNotEmpty)
-        _str(child['classroom_name']),
-      if (_str(child['section_name']).isNotEmpty) _str(child['section_name']),
-    ].join(' · ');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          widget.isArabic ? 'من تود متابعة أخباره؟' : 'Who do you want to follow?',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: AppTheme.ink,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 18),
+        _ChildSelector(
+          children: widget.children,
+          isArabic: widget.isArabic,
+          selectedChildId: appState.selectedChildId,
+          onSelect: (id) => context.read<AppState>().setSelectedChild(id),
+        ),
+        const SizedBox(height: 28),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: items.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            childAspectRatio: 0.88,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemBuilder: (context, index) => _ActionTile(
+            item: items[index],
+            onTap: () => context.go(items[index].route),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  List<NavItem> _parentActionItems(BuildContext context) {
+    const dashboardRoute = '/parent/dashboard';
+    const profileRoute = '/parent/profile';
+    final groups = navGroupsForRole(UserRole.parent);
+    return groups
+        .expand((group) => group.items)
+        .where(
+          (item) =>
+              item.route != dashboardRoute && item.route != profileRoute,
+        )
+        .toList();
+  }
+}
+
+class _ChildSelector extends StatelessWidget {
+  const _ChildSelector({
+    required this.children,
+    required this.isArabic,
+    required this.selectedChildId,
+    required this.onSelect,
+  });
+
+  final List<dynamic> children;
+  final bool isArabic;
+  final int? selectedChildId;
+  final ValueChanged<int?> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) {
+      return NoDataWidget(
+        compact: true,
+        icon: Icons.child_care_rounded,
+        title: isArabic ? 'لا يوجد أبناء مرتبطون' : 'No linked children',
+      );
+    }
+
+    return SizedBox(
+      height: 104,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: children.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        itemBuilder: (context, index) {
+          final child = _map(children[index]);
+          final id = _num(child['id']).toInt();
+          final name = _str(child['name']);
+          final photoUrl = _str(child['photo_url'] ?? child['image']);
+          final selected = selectedChildId == null
+              ? index == 0
+              : selectedChildId == id;
+
+          return GestureDetector(
+            onTap: () => onSelect(selected ? null : id),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 46,
-                  height: 46,
+                  width: 68,
+                  height: 68,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topRight,
-                      end: Alignment.bottomLeft,
-                      colors: [Color(0xFF1E3C72), Color(0xFF2A52BE)],
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: selected ? AppTheme.primary : AppTheme.borderColor,
+                      width: selected ? 3 : 2,
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: selected
+                        ? [
+                            BoxShadow(
+                              color: AppTheme.primary.withValues(alpha: .25),
+                              blurRadius: 12,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                        : null,
                   ),
-                  child: const Icon(
-                    Icons.person_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _str(child['name']).isEmpty ? '—' : _str(child['name']),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      if (info.isNotEmpty)
-                        Text(
-                          info,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppTheme.muted,
-                            fontSize: 13,
-                          ),
-                        ),
-                    ],
+                  child: ClipOval(
+                    child: photoUrl.isNotEmpty
+                        ? Image.network(
+                            photoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _ChildAvatarFallback(name: name),
+                          )
+                        : _ChildAvatarFallback(name: name),
                   ),
                 ),
-                if (todayAttendance != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: todayAttendance == true
-                          ? AppTheme.mint.withValues(alpha: .16)
-                          : AppTheme.coral.withValues(alpha: .16),
-                      borderRadius: BorderRadius.circular(40),
-                    ),
-                    child: Text(
-                      todayAttendance == true
-                          ? (isArabic ? 'حاضر' : 'Present')
-                          : (isArabic ? 'غائب' : 'Absent'),
-                      style: TextStyle(
-                        color: todayAttendance == true
-                            ? AppTheme.mint
-                            : AppTheme.coralDark,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
+                const SizedBox(height: 8),
+                Text(
+                  name.isEmpty ? '—' : name,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: selected ? AppTheme.primary : AppTheme.ink,
                   ),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _MiniChip(
-                  icon: Icons.fact_check_rounded,
-                  text:
-                      '${_num(attendance['present_rate']).toInt()}% ${isArabic ? 'حضور' : 'attendance'}',
-                ),
-                _MiniChip(
-                  icon: Icons.payments_rounded,
-                  text:
-                      '${(isArabic ? 'مدفوع ' : 'paid ')}${_num(finance['paid']).toStringAsFixed(0)}',
-                ),
-                _MiniChip(
-                  icon: Icons.account_balance_wallet_rounded,
-                  text:
-                      '${(isArabic ? 'متبقي ' : 'remaining ')}${_num(finance['remaining']).toStringAsFixed(0)}',
-                ),
-                if (exams.isNotEmpty)
-                  _MiniChip(
-                    icon: Icons.assignment_rounded,
-                    text: isArabic
-                        ? '${exams.length} اختبارات قادمة'
-                        : '${exams.length} upcoming exams',
-                  ),
-              ],
-            ),
-            if (_num(grades['overall_percentage']) > 0) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: LinearProgressIndicator(
-                        value:
-                            (_num(grades['overall_percentage']).toDouble() /
-                                    100)
-                                .clamp(0, 1),
-                        minHeight: 8,
-                        backgroundColor: AppTheme.borderColor.withValues(
-                          alpha: .5,
-                        ),
-                        color: AppTheme.primary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    '${_num(grades['overall_percentage']).toInt()}%',
-                    style: const TextStyle(
-                      color: AppTheme.primary,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ChildAvatarFallback extends StatelessWidget {
+  const _ChildAvatarFallback({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return CircleAvatar(
+      radius: 34,
+      backgroundColor: AppTheme.primaryPale,
+      child: Text(
+        name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+        style: const TextStyle(
+          color: AppTheme.primary,
+          fontWeight: FontWeight.w900,
+          fontSize: 24,
         ),
       ),
     );
   }
 }
 
-class _DashHeader extends StatelessWidget {
-  const _DashHeader({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({required this.item, required this.onTap});
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  final NavItem item;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-          colors: [Color(0xFF1E3C72), Color(0xFF2A52BE)],
+    final currentPath = GoRouterState.of(context).uri.path;
+    final selected = item.route == currentPath;
+
+    return Material(
+      color: selected ? AppTheme.cloud : Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected
+                  ? AppTheme.primary.withValues(alpha: .4)
+                  : AppTheme.borderColor.withValues(alpha: .5),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.shadowTint.withValues(alpha: .05),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              LivingNavIcon(
+                icon: item.icon,
+                selected: selected,
+                size: 52,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                localizedNavLabel(context, item),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                  color: selected ? AppTheme.primary : AppTheme.ink,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
         ),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1E3C72).withValues(alpha: .3),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 70,
-            height: 70,
-            decoration: const BoxDecoration(
-              color: AppTheme.honey,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: Colors.white, size: 34),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  style: TextStyle(color: Colors.white.withValues(alpha: .86)),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1910,103 +1882,6 @@ class _SoftIcon extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Icon(icon, color: AppTheme.primary, size: 22),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.value,
-    required this.label,
-    required this.icon,
-    required this.color,
-  });
-
-  final String value;
-  final String label;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: (MediaQuery.sizeOf(context).width - 48) / 2,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.shadowTint.withValues(alpha: .06),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppTheme.muted, fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniChip extends StatelessWidget {
-  const _MiniChip({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: AppTheme.primary),
-          const SizedBox(width: 5),
-          Text(
-            text,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/app_state.dart';
 import '../../core/localization/module_localization.dart';
 import '../../core/models/app_models.dart';
 import '../../core/network/api_service.dart';
@@ -119,6 +120,32 @@ class _ParentReportsViewState extends State<_ParentReportsView> {
         ),
       );
     }
+
+    final selectedChildId = context.watch<AppState>().selectedChildId;
+    final visibleChildren = selectedChildId == null
+        ? _children
+        : _children
+            .where(
+              (c) =>
+                  c is Map && _num(c['id']).toInt() == selectedChildId,
+            )
+            .toList();
+
+    if (visibleChildren.isEmpty) {
+      return SizedBox(
+        height: 320,
+        child: Center(
+          child: NoDataWidget(
+            icon: Icons.assessment_rounded,
+            title: isArabic ? 'لا توجد تقارير بعد' : 'No reports yet',
+            message: isArabic
+                ? 'لا توجد تقارير شهرية للابن المحدد.'
+                : 'No monthly reports for the selected child.',
+          ),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -138,7 +165,7 @@ class _ParentReportsViewState extends State<_ParentReportsView> {
           ),
         ),
         const SizedBox(height: 14),
-        for (final child in _children) ...[
+        for (final child in visibleChildren) ...[
           _ChildReportCard(
             child: _map(child),
             isArabic: isArabic,
