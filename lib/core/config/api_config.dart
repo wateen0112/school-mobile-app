@@ -21,7 +21,7 @@ class ApiConfig {
   /// The single source of truth for the API base URL.
   static String get defaultBaseUrl {
     if (_envBaseUrl.isNotEmpty) return _envBaseUrl;
-    if (!kIsWeb && Platform.isAndroid) return 'http://192.168.1.105:8000/api';
-    return 'http://192.168.1.105:8000/api';
+    if (!kIsWeb && Platform.isAndroid) return 'http://192.168.1.2:8000/api';
+    return 'http://192.168.1.2:8000/api';
   }
 }

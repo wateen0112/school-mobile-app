@@ -10,6 +10,7 @@ import '../../features/notifications/notification_dropdown.dart';
 import '../data/school_modules.dart';
 import '../localization/module_localization.dart';
 import '../models/app_models.dart';
+import '../state/dashboard_grid_pref.dart';
 import '../state/session_controller.dart';
 import '../theme/app_theme.dart';
 import '../../widgets/shared_widgets.dart';
@@ -27,8 +28,6 @@ class AppShell extends StatelessWidget {
     final groups = navGroupsForRole(session.currentRole);
     final mobileItems = _primaryMobileItems(session.currentRole);
     final isParent = session.currentRole == UserRole.parent;
-    final showBottomBar =
-        !isParent && _isBottomBarRoute(mobileItems, currentPath);
     final mobileSelectedIndex =
         navigationShell?.currentIndex ??
         _selectedIndex(mobileItems, currentPath);
@@ -49,14 +48,33 @@ class AppShell extends StatelessWidget {
                   ? (currentPath == session.homeRoute
                       ? null
                       : _ParentBackButton(homeRoute: session.homeRoute))
-                  : Builder(
-                      builder: (context) => _ShellIconButton(
-                        onPressed: () => Scaffold.of(context).openDrawer(),
-                        icon: Icons.menu_rounded,
-                        tooltip: appIsArabic(context)
-                            ? 'فتح القائمة'
-                            : 'Open menu',
-                      ),
+                  : ValueListenableBuilder<bool>(
+                      valueListenable: dashboardSectionsGrid,
+                      builder: (context, gridActive, _) {
+                        if (gridActive) {
+                          if (currentPath == session.homeRoute) {
+                            return const SizedBox.shrink();
+                          }
+                          return Builder(
+                            builder: (ctx) => _ShellIconButton(
+                              onPressed: () => GoRouter.of(ctx).go(session.homeRoute),
+                              icon: Icons.arrow_back_rounded,
+                              tooltip: appIsArabic(ctx)
+                                  ? 'رجوع للرئيسية'
+                                  : 'Back to home',
+                            ),
+                          );
+                        }
+                        return Builder(
+                          builder: (ctx) => _ShellIconButton(
+                            onPressed: () => Scaffold.of(ctx).openDrawer(),
+                            icon: Icons.menu_rounded,
+                            tooltip: appIsArabic(ctx)
+                                ? 'فتح القائمة'
+                                : 'Open menu',
+                          ),
+                        );
+                      },
                     ),
               actions: [
                 _NotificationDropdown(session: session),
@@ -122,18 +140,26 @@ class AppShell extends StatelessWidget {
                     child: const Icon(Icons.network_check_rounded),
                   )
                 : null,
-            bottomNavigationBar: showBottomBar
-                ? _FloatingBottomBar(
-                    items: mobileItems,
-                    selectedIndex: mobileSelectedIndex,
-                    onTap: (index) => _onBottomBarTap(
-                      context,
-                      index: index,
-                      mobileItems: mobileItems,
-                      currentPath: currentPath,
-                    ),
-                  )
-                : null,
+            bottomNavigationBar: ValueListenableBuilder<bool>(
+              valueListenable: dashboardSectionsGrid,
+              builder: (context, gridActive, _) {
+                if (gridActive) return const SizedBox.shrink();
+                if (isParent) return const SizedBox.shrink();
+                if (!_isBottomBarRoute(mobileItems, currentPath)) {
+                  return const SizedBox.shrink();
+                }
+                return _FloatingBottomBar(
+                  items: mobileItems,
+                  selectedIndex: mobileSelectedIndex,
+                  onTap: (index) => _onBottomBarTap(
+                    context,
+                    index: index,
+                    mobileItems: mobileItems,
+                    currentPath: currentPath,
+                  ),
+                );
+              },
+            ),
           ),
         );
       },

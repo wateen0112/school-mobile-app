@@ -13,6 +13,7 @@ String localizedRoleLabel(BuildContext context, UserRole role) {
     UserRole.student => 'الطالب',
     UserRole.parent => 'ولي الأمر',
     UserRole.driver => 'السائق',
+    UserRole.admin => 'مدير',
   };
 }
 
@@ -323,7 +324,12 @@ const _fieldsAr = <String, String>{
   'School name': 'اسم المدرسة',
   'Default language': 'اللغة الافتراضية',
   'Academic year': 'السنة الدراسية',
+  'Current academic year': 'السنة الدراسية الحالية',
+  'New academic year': 'السنة الدراسية الجديدة',
   'Title': 'العنوان',
+  'Year': 'السنة الدراسية',
+  'Description': 'الوصف',
+  'Fee type': 'نوع الرسم',
   'Time limit': 'المدة الزمنية',
   'Meeting link': 'رابط الاجتماع',
   'Name': 'الاسم',

@@ -21,6 +21,7 @@ class SchoolDataTable extends StatefulWidget {
     required this.onCreate,
     required this.onEdit,
     required this.onDelete,
+    this.onRowTap,
   });
 
   final ModuleSpec module;
@@ -29,6 +30,7 @@ class SchoolDataTable extends StatefulWidget {
   final VoidCallback onCreate;
   final ValueChanged<SchoolRecord> onEdit;
   final ValueChanged<SchoolRecord> onDelete;
+  final ValueChanged<SchoolRecord>? onRowTap;
 
   @override
   State<SchoolDataTable> createState() => _SchoolDataTableState();
@@ -80,6 +82,7 @@ class _SchoolDataTableState extends State<SchoolDataTable> {
                 pairs: pairs,
                 onEdit: widget.onEdit,
                 onDelete: _confirmDelete,
+                onRowTap: widget.onRowTap,
               )
             else
               _WideDataTable(
@@ -93,6 +96,7 @@ class _SchoolDataTableState extends State<SchoolDataTable> {
                 }),
                 onEdit: widget.onEdit,
                 onDelete: _confirmDelete,
+                onRowTap: widget.onRowTap,
               ),
           ],
         );
@@ -175,12 +179,14 @@ class _MobileRecordList extends StatelessWidget {
     required this.pairs,
     required this.onEdit,
     required this.onDelete,
+    this.onRowTap,
   });
 
   final ModuleSpec module;
   final List<({List<String> row, SchoolRecord record})> pairs;
   final ValueChanged<SchoolRecord> onEdit;
   final ValueChanged<SchoolRecord> onDelete;
+  final ValueChanged<SchoolRecord>? onRowTap;
 
   @override
   Widget build(BuildContext context) {
@@ -202,6 +208,7 @@ class _MobileRecordList extends StatelessWidget {
             record: pair.record,
             onEdit: onEdit,
             onDelete: onDelete,
+            onRowTap: onRowTap,
           ),
           const SizedBox(height: 10),
         ],
@@ -217,6 +224,7 @@ class _MobileRecordCard extends StatelessWidget {
     required this.record,
     required this.onEdit,
     required this.onDelete,
+    this.onRowTap,
   });
 
   final ModuleSpec module;
@@ -224,6 +232,7 @@ class _MobileRecordCard extends StatelessWidget {
   final SchoolRecord record;
   final ValueChanged<SchoolRecord> onEdit;
   final ValueChanged<SchoolRecord> onDelete;
+  final ValueChanged<SchoolRecord>? onRowTap;
 
   @override
   Widget build(BuildContext context) {
@@ -249,56 +258,62 @@ class _MobileRecordCard extends StatelessWidget {
           ),
     ];
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(16),
+    final card = Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onRowTap != null ? () => onRowTap!(record) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(module.icon, color: AppTheme.primary, size: 22),
                   ),
-                  child: Icon(module.icon, color: AppTheme.primary, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
-                ),
-                _RecordActions(
-                  module: module,
-                  onEdit: () => onEdit(record),
-                  onDelete: () => onDelete(record),
-                ),
-              ],
-            ),
-            if (details.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final detail in details)
-                    _DetailPill(label: detail.label, value: detail.value),
+                  _RecordActions(
+                    module: module,
+                    onEdit: () => onEdit(record),
+                    onDelete: () => onDelete(record),
+                  ),
                 ],
               ),
+              if (details.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final detail in details)
+                      _DetailPill(label: detail.label, value: detail.value),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
+    return card;
   }
 }
 
@@ -690,6 +705,7 @@ class _WideDataTable extends StatelessWidget {
     required this.onSort,
     required this.onEdit,
     required this.onDelete,
+    this.onRowTap,
   });
 
   final ModuleSpec module;
@@ -699,6 +715,7 @@ class _WideDataTable extends StatelessWidget {
   final void Function(int index, bool ascending) onSort;
   final ValueChanged<SchoolRecord> onEdit;
   final ValueChanged<SchoolRecord> onDelete;
+  final ValueChanged<SchoolRecord>? onRowTap;
 
   @override
   Widget build(BuildContext context) {
@@ -707,6 +724,7 @@ class _WideDataTable extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          showCheckboxColumn: false,
           headingRowColor: WidgetStatePropertyAll(
             AppTheme.primary.withValues(alpha: .08),
           ),
@@ -735,6 +753,9 @@ class _WideDataTable extends StatelessWidget {
           rows: [
             for (final pair in pairs)
               DataRow(
+                onSelectChanged: onRowTap != null
+                    ? (_) => onRowTap!(pair.record)
+                    : null,
                 cells: [
                   for (
                     var i = 0;

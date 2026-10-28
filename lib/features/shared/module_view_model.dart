@@ -32,8 +32,10 @@ class ModuleViewModel extends ChangeNotifier {
   Map<String, dynamic>? dashboardData;
   bool filterOptionsLoading = false;
   String? selectedGradeId;
+  String? selectedClassroomId;
   String? selectedSectionId;
   List<FormOption> gradeFilterOptions = const [];
+  List<FormOption> classroomFilterOptions = const [];
   List<FormOption> sectionFilterOptions = const [];
   bool _disposed = false;
   String? _filterLanguageCode;
@@ -85,10 +87,12 @@ class ModuleViewModel extends ChangeNotifier {
             ? (teacherScoped
                   ? await _repository.teacherStudents(
                       gradeId: selectedGradeId,
+                      classroomId: selectedClassroomId,
                       sectionId: selectedSectionId,
                     )
                   : await _repository.filteredStudents(
                       gradeId: selectedGradeId,
+                      classroomId: selectedClassroomId,
                       sectionId: selectedSectionId,
                     ))
             : await _repository.list(module);
@@ -182,8 +186,15 @@ class ModuleViewModel extends ChangeNotifier {
         );
         _studentFiltersLoaded = true;
         if (selectedGradeId != null && selectedGradeId!.isNotEmpty) {
-          sectionFilterOptions = await _repository.teacherSectionOptions(
-            selectedGradeId,
+          classroomFilterOptions = await _repository.teacherAssignmentClassroomOptions(
+            gradeId: selectedGradeId,
+            languageCode: languageCode,
+          );
+        }
+        if (selectedClassroomId != null && selectedClassroomId!.isNotEmpty) {
+          sectionFilterOptions = await _repository.teacherAssignmentSectionOptions(
+            gradeId: selectedGradeId,
+            classroomId: selectedClassroomId,
             languageCode: languageCode,
           );
         }
@@ -194,8 +205,14 @@ class ModuleViewModel extends ChangeNotifier {
         );
         _studentFiltersLoaded = true;
         if (selectedGradeId != null && selectedGradeId!.isNotEmpty) {
-          sectionFilterOptions = await _repository.sectionsForGrade(
+          classroomFilterOptions = await _repository.classroomsForGrade(
             selectedGradeId!,
+            languageCode: languageCode,
+          );
+        }
+        if (selectedClassroomId != null && selectedClassroomId!.isNotEmpty) {
+          sectionFilterOptions = await _repository.sectionsForClassroom(
+            selectedClassroomId!,
             languageCode: languageCode,
           );
         }
@@ -210,19 +227,49 @@ class ModuleViewModel extends ChangeNotifier {
 
   Future<void> setStudentGrade(String? gradeId, String languageCode) async {
     selectedGradeId = gradeId?.isEmpty == true ? null : gradeId;
+    selectedClassroomId = null;
     selectedSectionId = null;
+    classroomFilterOptions = const [];
     sectionFilterOptions = const [];
     filterOptionsLoading = true;
     _notify();
     try {
       if (selectedGradeId != null) {
-        sectionFilterOptions = teacherScoped
-            ? await _repository.teacherSectionOptions(
-                selectedGradeId,
+        classroomFilterOptions = teacherScoped
+            ? await _repository.teacherAssignmentClassroomOptions(
+                gradeId: selectedGradeId,
                 languageCode: languageCode,
               )
-            : await _repository.sectionsForGrade(
+            : await _repository.classroomsForGrade(
                 selectedGradeId!,
+                languageCode: languageCode,
+              );
+      }
+      await load();
+    } catch (e) {
+      error = ApiService.failureFrom(e).message;
+    } finally {
+      filterOptionsLoading = false;
+      _notify();
+    }
+  }
+
+  Future<void> setStudentClassroom(String? classroomId, String languageCode) async {
+    selectedClassroomId = classroomId?.isEmpty == true ? null : classroomId;
+    selectedSectionId = null;
+    sectionFilterOptions = const [];
+    filterOptionsLoading = true;
+    _notify();
+    try {
+      if (selectedClassroomId != null) {
+        sectionFilterOptions = teacherScoped
+            ? await _repository.teacherAssignmentSectionOptions(
+                gradeId: selectedGradeId,
+                classroomId: selectedClassroomId,
+                languageCode: languageCode,
+              )
+            : await _repository.sectionsForClassroom(
+                selectedClassroomId!,
                 languageCode: languageCode,
               );
       }
@@ -242,7 +289,9 @@ class ModuleViewModel extends ChangeNotifier {
 
   Future<void> clearStudentFilters() async {
     selectedGradeId = null;
+    selectedClassroomId = null;
     selectedSectionId = null;
+    classroomFilterOptions = const [];
     sectionFilterOptions = const [];
     await load();
   }

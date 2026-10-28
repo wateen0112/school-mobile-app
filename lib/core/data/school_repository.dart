@@ -32,18 +32,58 @@ class SchoolRepository {
         config.endpoint,
         query: {...config.listQuery, ...?query},
       );
-      debugPrint('[SchoolRepository] list(${module.key}) response: $body');
+      debugPrint('[SchoolRepository] list(${module.key}) response keys: ${body.keys}');
       final data = _extractData(body);
-      debugPrint('[SchoolRepository] list(${module.key}) extracted data: $data');
+      debugPrint('[SchoolRepository] list(${module.key}) extracted data count: ${data.length}');
+      if (data.isEmpty && body['data'] != null) {
+        // Try alternative extraction
+        final alt = body['data'];
+        if (alt is List) {
+          return _recordsFromData(alt, config.idField);
+        }
+      }
+      if (data.isNotEmpty) {
+        return _recordsFromData(data, config.idField);
+      }
+      // If still empty, try without query
+      if (query != null && query.isNotEmpty) {
+        try {
+          final body2 = await _api.get(config.endpoint);
+          final data2 = _extractData(body2);
+          if (data2.isNotEmpty || body2['data'] is List) {
+            return _recordsFromData(body2['data'] is List ? body2['data'] as List : data2, config.idField);
+          }
+        } catch (_) {}
+      }
       return _recordsFromData(data, config.idField);
     } catch (error, stackTrace) {
       debugPrint('[SchoolRepository] list(${module.key}) error: $error\n$stackTrace');
+      // For sections, try to be more tolerant - sometimes the response might be problematic
+      if (module.key == 'sections') {
+        try {
+          // Try without extra query params
+          final body = await _api.get(config.endpoint);
+          final data = _extractData(body);
+          if (data.isNotEmpty || body['data'] is List) {
+            return _recordsFromData(body['data'] is List ? body['data'] as List : data, config.idField);
+          }
+        } catch (_) {}
+      }
+      // Try without query params as last resort
+      try {
+        final body = await _api.get(config.endpoint);
+        final data = _extractData(body);
+        if (data.isNotEmpty || body['data'] is List) {
+          return _recordsFromData(body['data'] is List ? body['data'] as List : data, config.idField);
+        }
+      } catch (_) {}
       throw ApiService.failureFrom(error);
     }
   }
 
   Future<List<SchoolRecord>> filteredStudents({
     String? gradeId,
+    String? classroomId,
     String? sectionId,
   }) async {
     final module = moduleByKey('students');
@@ -52,6 +92,7 @@ class SchoolRepository {
       module,
       query: {
         if (gradeId != null && gradeId.isNotEmpty) 'Grade_id': gradeId,
+        if (classroomId != null && classroomId.isNotEmpty) 'Classroom_id': classroomId,
         if (sectionId != null && sectionId.isNotEmpty) 'section_id': sectionId,
       },
     );
@@ -123,12 +164,52 @@ class SchoolRepository {
     debugPrint('[SchoolRepository] optionsFor($moduleKey) starting...');
     final module = moduleByKey(moduleKey);
     debugPrint('[SchoolRepository] optionsFor($moduleKey) module found: ${module != null}');
-    final records = module == null
-        ? await _listByConfigKey(moduleKey)
-        : await list(module);
-    debugPrint('[SchoolRepository] optionsFor($moduleKey) records count: ${records.length}');
+    List<SchoolRecord> records = const [];
+    try {
+      records = module == null
+          ? await _listByConfigKey(moduleKey)
+          : await list(module);
+    } catch (e) {
+      debugPrint('[SchoolRepository] optionsFor($moduleKey) error: $e, trying alternative...');
+      try {
+        if (module != null) {
+          final config = apiConfigFor(module);
+          if (config != null) {
+            final body = await _api.get(config.endpoint);
+            final data = _extractData(body);
+            if (data.isEmpty && body['data'] is List) {
+              records = _recordsFromData(body['data'] as List, config.idField);
+            } else if (data.isNotEmpty) {
+              records = _recordsFromData(data, config.idField);
+            }
+          }
+        } else {
+          records = await _listByConfigKey(moduleKey);
+        }
+      } catch (_) {}
+    }
+    // Deduplicate by id
+    final seen = <String>{};
+    final unique = <SchoolRecord>[];
+    for (final r in records) {
+      final key = '${r.id ?? _fallbackOptionValue(r.raw)}';
+      if (seen.add(key)) {
+        unique.add(r);
+      }
+    }
+    debugPrint('[SchoolRepository] optionsFor($moduleKey) records count: ${unique.length}');
+    // For academic-years, use the name as the value (not id)
+    if (moduleKey == 'academic-years') {
+      return [
+        for (final record in unique)
+          FormOption(
+            value: _optionLabel(record.raw, languageCode: languageCode),
+            label: _optionLabel(record.raw, languageCode: languageCode),
+          ),
+      ];
+    }
     return [
-      for (final record in records)
+      for (final record in unique)
         FormOption(
           value: '${record.id ?? _fallbackOptionValue(record.raw)}',
           label: _optionLabel(record.raw, languageCode: languageCode),
@@ -654,9 +735,12 @@ class SchoolRepository {
     if (config == null) return const [];
     try {
       final body = await _api.get(config.endpoint, query: config.listQuery);
-      debugPrint('[SchoolRepository] _listByConfigKey($configKey) response: $body');
+      debugPrint('[SchoolRepository] _listByConfigKey($configKey) response keys: ${body.keys}');
       final data = _extractData(body);
-      debugPrint('[SchoolRepository] _listByConfigKey($configKey) extracted data: $data');
+      debugPrint('[SchoolRepository] _listByConfigKey($configKey) extracted data count: ${data.length}');
+      if (data.isEmpty && body['data'] is List) {
+        return _recordsFromData(body['data'] as List, config.idField);
+      }
       return _recordsFromData(data, config.idField);
     } catch (error, stackTrace) {
       debugPrint('[SchoolRepository] _listByConfigKey($configKey) error: $error\n$stackTrace');
@@ -714,14 +798,24 @@ class SchoolRepository {
   List<dynamic> _extractData(Map<String, dynamic> body) {
     final data = body['data'];
     if (data is List) return data;
-    if (data is Map && data['data'] is List) return data['data'] as List;
     if (data is Map) {
+      if (data['data'] is List) return data['data'] as List;
+      if (data['items'] is List) return data['items'] as List;
+      if (data['results'] is List) return data['results'] as List;
+      // Handle Laravel pagination format where items are in ['data']['data'] or similar
+      for (final value in data.values) {
+        if (value is List) return value;
+        if (value is Map && value['data'] is List) return value['data'] as List;
+      }
       return [
         for (final entry in data.entries)
           {'id': entry.key, 'Name': entry.value},
       ];
     }
     if (body['stats'] is Map) return [body['stats']];
+    if (body['promotions'] is List) return body['promotions'] as List;
+    if (body['items'] is List) return body['items'] as List;
+    if (body['results'] is List) return body['results'] as List;
     // Handle case where body.values contains a List (nested array)
     for (final value in body.values) {
       if (value is List) return value;
@@ -731,9 +825,15 @@ class SchoolRepository {
       if (value is Map) {
         final nested = value['data'];
         if (nested is List) return nested;
+        final nested2 = value['items'];
+        if (nested2 is List) return nested2;
       }
     }
     return const [];
+  }
+
+  bool _isRecordLike(Map map) {
+    return map.containsKey('id') || map.containsKey('ID') || map.keys.any((k) => k.toString().toLowerCase().contains('name'));
   }
 
   List<SchoolRecord> _recordsFromData(List<dynamic> data, String idField) {
@@ -865,7 +965,54 @@ class SchoolRepository {
   }) {
     final lower = column.toLowerCase();
     final isDateColumn = lower.contains('date');
+    
+    // For sections module specifically
+    if (lower.contains('section')) {
+      // Try Name_Section first
+      if (raw.containsKey('Name_Section') && raw['Name_Section'] != null) {
+        final display = _trimDisplay(_display(raw['Name_Section'], languageCode: languageCode));
+        if (display != '-' && display.isNotEmpty) {
+          return isDateColumn ? _formatDate(display) : display;
+        }
+      }
+    }
+    if (lower.contains('classroom') || lower.contains('class')) {
+      // Try My_classs
+      if (raw.containsKey('My_classs') && raw['My_classs'] != null) {
+        final display = _trimDisplay(_display(raw['My_classs'], languageCode: languageCode));
+        if (display != '-' && display.isNotEmpty && !display.contains(RegExp(r'^\d+$'))) {
+          return isDateColumn ? _formatDate(display) : display;
+        }
+      }
+      if (raw.containsKey('Class_id') && raw['Class_id'] != null) {
+        // Will fall through to try to find nested
+      }
+    }
+    if (lower.contains('grade')) {
+      if (raw.containsKey('Grades') && raw['Grades'] != null) {
+        final display = _trimDisplay(_display(raw['Grades'], languageCode: languageCode));
+        if (display != '-' && display.isNotEmpty && !display.contains(RegExp(r'^\d+$'))) {
+          return isDateColumn ? _formatDate(display) : display;
+        }
+      }
+    }
+    if (lower.contains('teacher')) {
+      if (raw.containsKey('teachers') && raw['teachers'] != null) {
+        final display = _trimDisplay(_display(raw['teachers'], languageCode: languageCode));
+        if (display != '-' && display.isNotEmpty) {
+          return isDateColumn ? _formatDate(display) : display;
+        }
+      }
+    }
+    
     final candidates = <String>[
+      if (lower.contains('section')) ...[
+        'Name_Section',
+        'name_section',
+        'section_name',
+        'Section',
+        'section',
+      ],
       if (lower.contains('name') ||
           lower.contains('title') ||
           lower.contains('student') ||
@@ -913,32 +1060,38 @@ class SchoolRepository {
       if (lower.contains('grade')) ...[
         'Grades',
         'grade',
+        'Grade',
         'Grade_id',
         'Grade_id_new',
+        'f_grade',
+        't_grade',
       ],
-      if (lower.contains('class')) ...[
+      if (lower.contains('classroom') || (lower.contains('class'))) ...[
         'My_classs',
-        'Name',
+        'Classrooms',
+        'classroom',
+        'classroom_name',
         'Name_class_en',
         'Name_class_ar',
         'Name_Class',
-        'classroom',
-        'classroom_name',
+        'Name',
         'Classroom_id',
         'classroom_id',
       ],
-      if (lower.contains('section')) ...[
-        'section',
-        'section_id',
+      if (lower.contains('teacher')) ...[
+        'teachers',
+        'teacher',
+        'Teacher',
+        'teacher_name',
+        'teachers_list',
+        'Name_Teacher',
       ],
       if (lower.contains('phone')) ...['Phone_Father', 'phone'],
       if (lower.contains('children')) ...['students'],
-      if (lower.contains('teacher') || lower.contains('subject')) ...[
-        'teacher',
+      if (lower.contains('subject')) ...[
         'subject',
+        'subjects',
         'specializations',
-        'genders',
-        'teacher_id',
       ],
       if (lower.contains('amount') || lower.contains('value')) ...[
         'amount',
@@ -965,7 +1118,39 @@ class SchoolRepository {
       final display = _trimDisplay(
         _display(raw[key], languageCode: languageCode),
       );
-      return isDateColumn ? _formatDate(display) : display;
+      if (display != '-' && display.isNotEmpty && !display.contains(RegExp(r'^\d+$')) && display.length > 1) {
+        return isDateColumn ? _formatDate(display) : display;
+      } else if (display != '-' && display.isNotEmpty && key != 'id') {
+        // For some cases like status as number, but better to try
+        // Only use if it's not just a raw number from id
+      }
+    }
+    // Also try to find any nested object that has a name
+    for (final entry in raw.entries) {
+      if (entry.value is Map) {
+        final display = _trimDisplay(
+          _display(entry.value, languageCode: languageCode),
+        );
+        if (display != '-' && display.isNotEmpty && !display.contains(RegExp(r'^\d+$')) && display.length > 1) {
+          return isDateColumn ? _formatDate(display) : display;
+        }
+      } else if (entry.value is List && (entry.value as List).isNotEmpty && (entry.value as List).first is Map) {
+        final display = _trimDisplay(
+          _display(entry.value, languageCode: languageCode),
+        );
+        if (display != '-' && display.isNotEmpty && !display.contains(RegExp(r'^\d+$'))) {
+          return isDateColumn ? _formatDate(display) : display;
+        }
+      }
+    }
+    // Last attempt - just get any non-id display
+    for (final key in ['Name_Section', 'My_classs', 'Grades', 'teachers']) {
+      if (raw.containsKey(key) && raw[key] != null) {
+        final display = _trimDisplay(_display(raw[key], languageCode: languageCode));
+        if (display != '-' && display.isNotEmpty) {
+          return isDateColumn ? _formatDate(display) : display;
+        }
+      }
     }
     return raw.isEmpty
         ? '-'
@@ -987,32 +1172,127 @@ class SchoolRepository {
       return _display(decoded, depth: depth, languageCode: languageCode);
     }
     if (value is Map) {
-      if (depth > 3) return '-';
+      if (depth > 5) return '-';
       final map = Map<String, dynamic>.from(value);
+      // Check for translated maps
+      if (map.containsKey('en') || map.containsKey('ar')) {
+        final direct = map[languageCode] ?? map[languageCode == 'ar' ? 'en' : 'ar'];
+        if (direct != null && direct is! Map) {
+          return _display(direct, depth: depth + 1, languageCode: languageCode);
+        }
+      }
+      // Prioritize name fields
+      final nameKeys = [
+        'Name_Section',
+        'name_section',
+        'Name_Section_En',
+        'Name_Section_Ar',
+        'Name_class',
+        'Name_Class',
+        'Name_class_en',
+        'Name_class_ar',
+        'Name',
+        'name',
+        'name_en',
+        'name_ar',
+        'Name_Father',
+        'Name_Mother',
+        'Name_Teacher',
+        'title',
+        'title_en',
+        'title_ar',
+      ];
+      for (final k in nameKeys) {
+        if (map.containsKey(k) && map[k] != null) {
+          final res = _display(map[k], depth: depth + 1, languageCode: languageCode);
+          if (res != '-' && res.isNotEmpty && !res.contains(RegExp(r'^\d+$'))) {
+            return res;
+          }
+        }
+      }
       final direct =
           map[languageCode] ??
           map[languageCode == 'ar' ? 'en' : 'ar'] ??
-          map['Name'] ??
-          map['Name_Father'] ??
-          map['Name_Mother'] ??
-          map['Name_Section'] ??
-          map['Name_Class'] ??
-          map['Name_class_en'] ??
-          map['Name_class_ar'] ??
-          map['name_en'] ??
-          map['name_ar'] ??
-          map['name'] ??
-          map['title_en'] ??
-          map['title_ar'] ??
-          map['title'] ??
+          map['Grade'] ??
+          map['Grades'] ??
+          map['My_classs'] ??
+          map['Classrooms'] ??
+          map['classroom'] ??
+          map['teacher'] ??
+          map['teachers'] ??
+          map['section'] ??
           map['id'];
       if (direct != null) {
-        return _display(direct, depth: depth + 1, languageCode: languageCode);
+        final res = _display(direct, depth: depth + 1, languageCode: languageCode);
+        if (res != '-' && res.isNotEmpty) return res;
+      }
+      // If it's a list inside map?
+      for (final v in map.values) {
+        if (v is Map || v is String || v is List) {
+          final res = _display(v, depth: depth + 1, languageCode: languageCode);
+          if (res != '-' && res.isNotEmpty && !res.contains(RegExp(r'^\d+$'))) {
+            // Don't return just numbers
+            if (res.length > 1 || !RegExp(r'^\d+$').hasMatch(res)) {
+              return res;
+            }
+          }
+        }
+      }
+      // Last resort - look for any string value that's not just an ID
+      for (final v in map.values) {
+        if (v is String && v.isNotEmpty && !v.contains(RegExp(r'^\d+$')) && v.length > 1) {
+          // Might be a name
+          final decoded = _decodeTranslatedString(v);
+          if (decoded != null) {
+            final res = _display(decoded, depth: depth + 1, languageCode: languageCode);
+            if (res != '-') return res;
+          }
+          return v;
+        }
       }
       return '-';
     }
+    if (value is List) {
+      if (value.isEmpty) return '-';
+      // If list of maps, try to get names
+      if (value.first is Map) {
+        final results = <String>[];
+        for (final item in value.take(3)) {
+          if (item is Map) {
+            final res = _display(item, depth: depth + 1, languageCode: languageCode);
+            if (res != '-' && res.isNotEmpty && !res.contains(RegExp(r'^\d+$'))) {
+              results.add(res);
+            } else if (res != '-' && res.isNotEmpty) {
+              // Maybe it's an ID but better than nothing
+              results.add(res);
+            }
+          }
+        }
+        if (results.isNotEmpty) return results.join(', ');
+      }
+      // If list of strings
+      if (value.first is String) {
+        final results = <String>[];
+        for (final item in value.take(3)) {
+          if (item is String) {
+            final decoded = _decodeTranslatedString(item);
+            if (decoded != null) {
+              final res = _display(decoded, depth: depth + 1, languageCode: languageCode);
+              if (res != '-') results.add(res);
+            } else if (item.isNotEmpty) {
+              results.add(item);
+            }
+          }
+        }
+        if (results.isNotEmpty) return results.join(', ');
+      }
+      return '${value.length}';
+    }
     if (value is bool) return value ? 'Present' : 'Absent';
-    if (value is List) return '${value.length}';
+    if (value is int || value is double) {
+      // Could be ID, but let caller decide - return as string
+      return '$value';
+    }
     return '$value';
   }
 
@@ -1028,25 +1308,41 @@ class SchoolRepository {
 
   String _optionLabel(Map<String, dynamic> raw, {String languageCode = 'en'}) {
     final candidates = [
-      'Name',
-      'Name_en',
-      'Name_ar',
       'Name_Section',
+      'Name_Section_En',
+      'Name_Section_Ar',
       'Name_Class',
       'Name_class_en',
       'Name_class_ar',
+      'Name',
+      'Name_en',
+      'Name_ar',
       'name_en',
       'name_ar',
       'name',
       'title_en',
       'title_ar',
       'title',
+      'Grade',
+      'My_classs',
+      'section',
       'id',
     ];
     for (final key in candidates) {
       final value = raw[key];
       if (value == null) continue;
-      return _trimDisplay(_display(value, languageCode: languageCode));
+      final res = _trimDisplay(_display(value, languageCode: languageCode));
+      if (res != '-' && res.isNotEmpty) return res;
+    }
+    // Try any key that contains name
+    for (final entry in raw.entries) {
+      final k = entry.key.toLowerCase();
+      if (k.contains('name') || k.contains('section') || k.contains('class')) {
+        if (entry.value != null) {
+          final res = _trimDisplay(_display(entry.value, languageCode: languageCode));
+          if (res != '-' && res.isNotEmpty) return res;
+        }
+      }
     }
     return _trimDisplay(
       _display(raw.values.firstOrNull, languageCode: languageCode),

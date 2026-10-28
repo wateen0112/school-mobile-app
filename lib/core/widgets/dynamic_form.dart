@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/school_repository.dart';
 import '../localization/module_localization.dart';
 import '../models/app_models.dart';
 
@@ -14,6 +15,7 @@ class DynamicModuleForm extends StatefulWidget {
     this.fieldOptions = const {},
     this.hiddenFields = const {},
     this.hiddenValues = const {},
+    this.repository,
   });
 
   final ModuleSpec module;
@@ -24,6 +26,7 @@ class DynamicModuleForm extends StatefulWidget {
   final Map<String, List<FormOption>> fieldOptions;
   final Set<String> hiddenFields;
   final Map<String, dynamic> hiddenValues;
+  final SchoolRepository? repository;
 
   @override
   State<DynamicModuleForm> createState() => _DynamicModuleFormState();
@@ -34,10 +37,23 @@ class _DynamicModuleFormState extends State<DynamicModuleForm> {
   final _controllers = <String, TextEditingController>{};
   final _selectValues = <String, dynamic>{};
   bool _submitting = false;
+  Map<String, List<FormOption>> _dynamicFieldOptions = {};
 
   @override
   void initState() {
     super.initState();
+    _dynamicFieldOptions = Map<String, List<FormOption>>.from(widget.fieldOptions);
+    // Initial cascading: if grade is set, filter classrooms
+    final initialGrade = widget.initialValues?['grade']?.toString();
+    if (initialGrade != null && initialGrade.isNotEmpty && widget.repository != null) {
+      widget.repository!.classroomsForGrade(initialGrade, languageCode: 'en').then((options) {
+        if (mounted) {
+          setState(() {
+            _dynamicFieldOptions['classroom'] = options;
+          });
+        }
+      }).catchError((_) {});
+    }
     for (final field in widget.module.fields) {
       final initial = _initialValue(field);
       if (field.kind == FieldKind.select) {
@@ -85,6 +101,7 @@ class _DynamicModuleFormState extends State<DynamicModuleForm> {
                     value: _selectValues[field.name],
                     onChanged: (value) =>
                         setState(() => _selectValues[field.name] = value),
+                    onFieldChanged: (name, value) => _handleFieldChange(name, value),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -190,12 +207,29 @@ class _DynamicModuleFormState extends State<DynamicModuleForm> {
   }
 
   List<FormOption> _optionsFor(FormFieldSpec field) {
-    final dynamicOptions = widget.fieldOptions[field.name];
+    final dynamicOptions = _dynamicFieldOptions[field.name];
     if (dynamicOptions != null) return dynamicOptions;
     return [
       for (final option in field.options)
         FormOption(value: option, label: option),
     ];
+  }
+
+  void _handleFieldChange(String fieldName, dynamic value) {
+    if (widget.repository == null) return;
+    if (fieldName == 'grade' && value is String && value.isNotEmpty) {
+      // Reload classrooms filtered by grade
+      final languageCode = 'en'; // Could get from context but simpler
+      widget.repository!.classroomsForGrade(value, languageCode: languageCode).then((options) {
+        if (mounted) {
+          setState(() {
+            _dynamicFieldOptions['classroom'] = options;
+            // Reset classroom selection
+            _selectValues['classroom'] = null;
+          });
+        }
+      }).catchError((_) {});
+    }
   }
 }
 
@@ -206,6 +240,7 @@ class _FieldInput extends StatelessWidget {
     required this.controller,
     required this.value,
     required this.onChanged,
+    this.onFieldChanged,
   });
 
   final FormFieldSpec field;
@@ -213,6 +248,7 @@ class _FieldInput extends StatelessWidget {
   final TextEditingController? controller;
   final dynamic value;
   final ValueChanged<dynamic> onChanged;
+  final void Function(String, dynamic)? onFieldChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -236,7 +272,10 @@ class _FieldInput extends StatelessWidget {
             )
             .toList(),
         initialValue: value is String ? value as String : null,
-        onChanged: (selected) => onChanged(selected),
+        onChanged: (selected) {
+          onChanged(selected);
+          onFieldChanged?.call(field.name, selected);
+        },
         validator: field.required
             ? (value) => value == null
                   ? appIsArabic(context)

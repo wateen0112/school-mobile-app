@@ -28,6 +28,9 @@ class PromotionService {
   Future<List<dynamic>> getEligibleStudents({
     int? fromClassId,
     String? academicYear,
+    String? gradeId,
+    String? classroomId,
+    String? sectionId,
   }) async {
     if (_isWeb) {
       await Future.delayed(const Duration(milliseconds: 500));
@@ -36,7 +39,9 @@ class PromotionService {
     final body = await _api.get(
       '/promotion/students-for-promotion',
       query: {
-        if (fromClassId != null) 'classroom_id': '$fromClassId',
+        if (gradeId != null) 'grade_id': gradeId,
+        if (classroomId != null || fromClassId != null) 'classroom_id': classroomId ?? '$fromClassId',
+        if (sectionId != null) 'section_id': sectionId,
         if (academicYear != null) 'academic_year': academicYear,
       },
     );
@@ -141,8 +146,28 @@ class PromotionService {
       await Future.delayed(const Duration(milliseconds: 300));
       return _mockPromotions;
     }
-    final body = await _api.get('/promotion');
-    return body['data'] as List<dynamic>? ?? [];
+    try {
+      final body = await _api.get('/promotion');
+      if (body['data'] is List) {
+        return body['data'] as List<dynamic>;
+      }
+      // Try alternative
+      if (body['promotions'] is List) {
+        return body['promotions'] as List<dynamic>;
+      }
+      return [];
+    } catch (e) {
+      // Try with different endpoint
+      try {
+        final body = await _api.get('/Promotion');
+        if (body['data'] is List) {
+          return body['data'] as List<dynamic>;
+        }
+        return [];
+      } catch (_) {
+        rethrow;
+      }
+    }
   }
 
   /// Revert a single promotion.

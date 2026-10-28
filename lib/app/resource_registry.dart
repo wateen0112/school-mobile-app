@@ -159,8 +159,9 @@ const resourceDefinitions = <ResourceDefinition>[
     fields: [
       ResourceField('title', 'name', required: true),
       ResourceField('amount', 'amount', type: FieldType.number, required: true),
-      ResourceField('Grade_id', 'grade'),
-      ResourceField('Classroom_id', 'classroom'),
+      ResourceField('Grade_id', 'grade', required: true),
+      ResourceField('Classroom_id', 'classroom', required: true),
+      ResourceField('Fee_type', 'feeType'),
       ResourceField('year', 'academicYear'),
       ResourceField('description', 'description', type: FieldType.multiline),
     ],

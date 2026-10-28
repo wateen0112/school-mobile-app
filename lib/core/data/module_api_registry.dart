@@ -153,11 +153,13 @@ final moduleApiConfigs = <String, ModuleApiConfig>{
   'fees': ModuleApiConfig(
     endpoint: '/Fees',
     fieldMap: {
-      'title': 'title_en',
+      'title': 'title_ar',
       'amount': 'amount',
       'grade': 'Grade_id',
       'classroom': 'Classroom_id',
       'status': 'Fee_type',
+      'year': 'year',
+      'description': 'description',
     },
     defaultPayload: _defaults,
   ),
@@ -310,6 +312,7 @@ final moduleApiConfigs = <String, ModuleApiConfig>{
     defaultPayload: {'Grade_id': 1, 'Classroom_id': 1, 'section_id': 1},
   ),
   'settings': ModuleApiConfig(endpoint: '/settings'),
+  'academic-years': ModuleApiConfig(endpoint: '/scheduling/academic-years'),
   'teacher-sections': ModuleApiConfig(endpoint: '/Sections'),
   'teacher-students': ModuleApiConfig(endpoint: '/teacher/students'),
   'teacher-attendance': ModuleApiConfig(endpoint: '/Attendance'),

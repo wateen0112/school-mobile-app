@@ -45,12 +45,14 @@ class _LivingNavIconState extends State<LivingNavIcon>
   @override
   Widget build(BuildContext context) {
     final spec = _LivingIconSpec.forIcon(widget.icon);
+    final bespoke = _LivingIconSpec.hasBespoke(widget.icon);
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         final t = _controller.value;
         final floatY = -1.6 + 3.2 * t;
         final glow = (0.35 + 0.65 * math.sin(t * math.pi)).clamp(0.0, 1.0);
+        final scale = 1.0 + 0.06 * math.sin(t * math.pi * 2);
         return Transform.translate(
           offset: Offset(0, floatY),
           child: Container(
@@ -58,6 +60,9 @@ class _LivingNavIconState extends State<LivingNavIcon>
             height: widget.size,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(widget.size * 0.32),
+              border: widget.selected
+                  ? Border.all(color: Colors.white, width: 2.4)
+                  : null,
               boxShadow: [
                 BoxShadow(
                   color: spec.glowColor.withValues(
@@ -68,13 +73,34 @@ class _LivingNavIconState extends State<LivingNavIcon>
                 ),
               ],
             ),
-            child: CustomPaint(
-              painter: _LivingIconPainter(
-                spec: spec,
-                glow: glow,
-                selected: widget.selected,
-              ),
-            ),
+            child: bespoke
+                ? CustomPaint(
+                    painter: _LivingIconPainter(
+                      spec: spec,
+                      glow: glow,
+                      selected: widget.selected,
+                    ),
+                  )
+                : Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(widget.size * 0.32),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [spec.colorA, spec.colorB],
+                      ),
+                    ),
+                    child: Center(
+                      child: Transform.scale(
+                        scale: scale,
+                        child: Icon(
+                          widget.icon,
+                          size: widget.size * 0.52,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
           ),
         );
       },
@@ -99,11 +125,14 @@ class _LivingIconSpec {
   final Color ink;
   final void Function(Canvas canvas, _LivingIconSpec spec) draw;
 
+  static bool hasBespoke(IconData icon) =>
+      _registry.any((entry) => entry.$1 == icon);
+
   static _LivingIconSpec forIcon(IconData icon) {
     for (final entry in _registry) {
       if (entry.$1 == icon) return entry.$2;
     }
-    return _orb;
+    return _orbs[icon.hashCode.abs() % _orbs.length];
   }
 
   static final _registry = <(IconData, _LivingIconSpec)>[
@@ -221,10 +250,24 @@ class _LivingIconSpec {
     draw: _drawWallet,
   );
 
-  static final _orb = _LivingIconSpec(
-    colorA: const Color(0xffA5B4FC),
-    colorB: const Color(0xff6366F1),
-    glowColor: const Color(0xff818CF8),
+  /// Colorful sparkle orbs — the fallback for icons without a bespoke glyph.
+  /// One spec per hue, chosen deterministically per icon, so every fallback
+  /// tile stays visually distinct and colorful.
+  static final _orbs = <_LivingIconSpec>[
+    _orb(const Color(0xffA5B4FC), const Color(0xff6366F1)), // indigo
+    _orb(const Color(0xff6EE7B7), const Color(0xff10B981)), // emerald
+    _orb(const Color(0xffFDA4AF), const Color(0xffE11D48)), // rose
+    _orb(const Color(0xffFDE68A), const Color(0xffF59E0B)), // amber
+    _orb(const Color(0xff7DD3FC), const Color(0xff0284C7)), // sky
+    _orb(const Color(0xffC4B5FD), const Color(0xff7C3AED)), // violet
+    _orb(const Color(0xffF9A8D4), const Color(0xffDB2777)), // pink
+    _orb(const Color(0xff99F6E4), const Color(0xff0D9488)), // teal
+  ];
+
+  static _LivingIconSpec _orb(Color colorA, Color colorB) => _LivingIconSpec(
+    colorA: colorA,
+    colorB: colorB,
+    glowColor: colorB,
     accent: Colors.white,
     ink: Colors.white,
     draw: _drawOrb,

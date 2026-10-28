@@ -9,6 +9,7 @@ import '../../features/installments/presentation/screens/installment_plans_scree
 import '../../features/installments/presentation/screens/my_installments_screen.dart';
 import '../../features/notifications/notification_screen.dart';
 import '../../features/shared/module_screen.dart';
+import '../../features/parents/parent_detail_screen.dart';
 import '../../features/exams/exams_list_screen.dart';
 import '../../features/exams/exam_start_screen.dart';
 import '../../features/exams/exam_result_screen.dart';
@@ -32,6 +33,8 @@ GoRouter createRouter(
     ...teacherModules,
     ...studentModules,
     ...parentModules,
+    ...driverModules,
+    ...adminModules,
   ];
   final primaryModules = session.isAuthenticated
       ? primaryMobileModulesForRole(session.currentRole)
@@ -135,6 +138,16 @@ GoRouter createRouter(
                   notification: state.extra as NotificationItem,
                 ),
               ),
+            ),
+            GoRoute(
+              path: '/parents/:id',
+              pageBuilder: (context, state) {
+                final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+                return MaterialPage(
+                  key: state.pageKey,
+                  child: ParentDetailScreen(parentId: id),
+                );
+              },
             ),
             GoRoute(
               path: '/driver/active-trip',

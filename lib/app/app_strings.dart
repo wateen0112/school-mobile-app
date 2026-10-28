@@ -230,6 +230,13 @@ class AppStrings {
       'year': 'Year',
       'noRatings': 'No ratings yet',
       'noInstallments': 'No installments',
+      'feeType': 'Fee type',
+      'registrationFee': 'Registration fee',
+      'transportFee': 'Transport fee',
+      'activityFee': 'Activity fee',
+      'booksFee': 'Books fee',
+      'uniformFee': 'Uniform fee',
+      'otherFee': 'Other',
     },
     'ar': {
       'appName': 'نظام إدارة المدرسة',
@@ -451,6 +458,13 @@ class AppStrings {
       'year': 'السنة',
       'noRatings': 'لا توجد تقييمات بعد',
       'noInstallments': 'لا توجد أقساط',
+      'feeType': 'نوع الرسم',
+      'registrationFee': 'رسوم تسجيل',
+      'transportFee': 'رسوم مواصلات',
+      'activityFee': 'رسوم أنشطة',
+      'booksFee': 'رسوم كتب',
+      'uniformFee': 'رسوم زي موحد',
+      'otherFee': 'أخرى',
     },
   };
 }

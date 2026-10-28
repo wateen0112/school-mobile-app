@@ -104,6 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         UserRole.teacher => 'TCH',
         UserRole.parent => 'PRN',
         UserRole.driver => 'DRV',
+        UserRole.admin => 'ADM',
       };
       _recordId = id == null ? null : '#$prefix-$id';
 
@@ -958,6 +959,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       UserRole.student => 'طالب',
       UserRole.parent => 'ولي أمر',
       UserRole.driver => 'سائق',
+      UserRole.admin => 'مدير',
     };
   }
 
@@ -967,6 +969,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       UserRole.student => 'Student',
       UserRole.parent => 'Parent',
       UserRole.driver => 'Driver',
+      UserRole.admin => 'Admin',
     };
   }
 }

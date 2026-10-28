@@ -7,6 +7,7 @@ const roleLabels = {
   UserRole.student: 'Student',
   UserRole.parent: 'Parent',
   UserRole.driver: 'Driver',
+  UserRole.admin: 'Admin',
 };
 
 const adminModules = <ModuleSpec>[
@@ -61,7 +62,7 @@ const adminModules = <ModuleSpec>[
     icon: Icons.grid_view_rounded,
     goal: 'Manage sections and assign teachers.',
     group: 'Sections',
-    columns: ['Section', 'Classroom', 'Teacher', 'Status'],
+    columns: ['Section', 'Classroom', 'Teacher'],
     fields: [
       FormFieldSpec(name: 'name', label: 'Section name', required: true),
       FormFieldSpec(
@@ -211,7 +212,14 @@ const adminModules = <ModuleSpec>[
       FormFieldSpec(
         name: 'academicYear',
         label: 'Current academic year',
+        kind: FieldKind.select,
         required: true,
+        options: const [
+          '2023-2024',
+          '2024-2025',
+          '2025-2026',
+          '2026-2027',
+        ],
       ),
       FormFieldSpec(
         name: 'toGrade',
@@ -237,7 +245,14 @@ const adminModules = <ModuleSpec>[
       FormFieldSpec(
         name: 'academicYearNew',
         label: 'New academic year',
+        kind: FieldKind.select,
         required: true,
+        options: const [
+          '2023-2024',
+          '2024-2025',
+          '2025-2026',
+          '2026-2027',
+        ],
       ),
     ],
     hasDelete: false,
@@ -373,34 +388,37 @@ const adminModules = <ModuleSpec>[
     icon: Icons.payments_rounded,
     goal: 'Track fee amounts, due dates, and paid/unpaid status.',
     group: 'Accounts',
-    columns: ['Student', 'Amount', 'Due date', 'Status'],
+    columns: ['Title', 'Amount', 'Grade', 'Classroom', 'Fee type', 'Year'],
     fields: [
-      FormFieldSpec(
-        name: 'student',
-        label: 'Student',
-        kind: FieldKind.select,
-        dynamicOptionsKey: 'students',
-      ),
+      FormFieldSpec(name: 'title', label: 'Title', required: true),
+      FormFieldSpec(name: 'amount', label: 'Amount', kind: FieldKind.number, required: true),
       FormFieldSpec(
         name: 'grade',
         label: 'Grade',
         kind: FieldKind.select,
+        required: true,
         dynamicOptionsKey: 'grades',
       ),
       FormFieldSpec(
         name: 'classroom',
         label: 'Classroom',
         kind: FieldKind.select,
+        required: true,
         dynamicOptionsKey: 'classrooms',
       ),
-      FormFieldSpec(name: 'amount', label: 'Amount', kind: FieldKind.number),
-      FormFieldSpec(name: 'dueDate', label: 'Due date', kind: FieldKind.date),
       FormFieldSpec(
         name: 'status',
-        label: 'Status',
+        label: 'Fee type',
         kind: FieldKind.select,
-        options: ['Paid', 'Unpaid'],
+        options: ['رسوم دراسية', 'رسوم تسجيل', 'رسوم مواصلات', 'رسوم أنشطة', 'رسوم كتب', 'رسوم زي موحد', 'أخرى'],
       ),
+      FormFieldSpec(
+        name: 'year',
+        label: 'Year',
+        kind: FieldKind.select,
+        dynamicOptionsKey: 'academic-years',
+      ),
+      FormFieldSpec(name: 'description', label: 'Description', kind: FieldKind.multiline),
     ],
   ),
   ModuleSpec(
@@ -1353,6 +1371,7 @@ List<ModuleSpec> modulesForRole(UserRole role) {
     UserRole.student => studentModules,
     UserRole.parent => parentModules,
     UserRole.driver => driverModules,
+    UserRole.admin => adminModules,
   };
 }
 
@@ -1375,6 +1394,11 @@ const _primaryMobileKeys = <UserRole, List<String>>{
   UserRole.driver: [
     'driver-home',
     'driver-trips',
+  ],
+  UserRole.admin: [
+    'admin-dashboard',
+    'students',
+    'settings',
   ],
 };
 
@@ -1411,6 +1435,8 @@ ModuleSpec? moduleByRoute(String route) {
     ...teacherModules,
     ...studentModules,
     ...parentModules,
+    ...driverModules,
+    ...adminModules,
   ]) {
     if (module.route == route) return module;
   }
@@ -1422,6 +1448,8 @@ ModuleSpec? moduleByKey(String key) {
     ...teacherModules,
     ...studentModules,
     ...parentModules,
+    ...driverModules,
+    ...adminModules,
   ]) {
     if (module.key == key) return module;
   }

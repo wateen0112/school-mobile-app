@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -13,11 +14,13 @@ import '../../core/data/school_repository.dart';
 import '../../core/models/app_models.dart';
 import '../../core/network/api_service.dart';
 import '../../core/network/promotion_service.dart';
+import '../../core/state/dashboard_grid_pref.dart';
 import '../../core/state/session_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/confirmation_dialog.dart';
 import '../../core/widgets/dynamic_form.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/living_icons.dart';
 import '../../core/widgets/loading_shimmer.dart';
 import '../../core/widgets/school_data_table.dart';
 import '../../widgets/shared_widgets.dart';
@@ -294,6 +297,7 @@ class ModuleScreen extends StatelessWidget {
                               fieldOptions: fieldOptions,
                               hiddenFields: hiddenFields,
                               hiddenValues: hiddenValues,
+                              repository: SchoolRepository(context.read<SessionController>().api),
                               submitLabel:
                                   '${t(context, 'save')} ${localizedModuleTitle(context, module)}',
                               topPadding: 52,
@@ -372,6 +376,7 @@ class _StudentApiFilters extends StatelessWidget {
                   ),
                 ),
                 if (viewModel.selectedGradeId != null ||
+                    viewModel.selectedClassroomId != null ||
                     viewModel.selectedSectionId != null)
                   TextButton.icon(
                     onPressed: viewModel.clearStudentFilters,
@@ -405,15 +410,45 @@ class _StudentApiFilters extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: viewModel.selectedSectionId,
+              initialValue: viewModel.selectedClassroomId,
               isExpanded: true,
               decoration: InputDecoration(
-                labelText: localizedColumnLabel(context, 'Section'),
+                labelText: localizedColumnLabel(context, 'Classroom'),
                 prefixIcon: const Icon(Icons.meeting_room_rounded),
                 helperText: viewModel.selectedGradeId == null
                     ? (appIsArabic(context)
                           ? 'اختر المرحلة أولًا'
                           : 'Choose a grade first')
+                    : null,
+              ),
+              items: [
+                for (final option in viewModel.classroomFilterOptions)
+                  DropdownMenuItem(
+                    value: option.value,
+                    child: Text(
+                      option.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged:
+                  viewModel.filterOptionsLoading ||
+                      viewModel.selectedGradeId == null
+                  ? null
+                  : (value) => viewModel.setStudentClassroom(value, languageCode),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: viewModel.selectedSectionId,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: localizedColumnLabel(context, 'Section'),
+                prefixIcon: const Icon(Icons.grid_view_rounded),
+                helperText: viewModel.selectedClassroomId == null
+                    ? (appIsArabic(context)
+                          ? 'اختر الفصل أولًا'
+                          : 'Choose a classroom first')
                     : null,
               ),
               items: [
@@ -429,7 +464,7 @@ class _StudentApiFilters extends StatelessWidget {
               ],
               onChanged:
                   viewModel.filterOptionsLoading ||
-                      viewModel.selectedGradeId == null
+                      viewModel.selectedClassroomId == null
                   ? null
                   : viewModel.setStudentSection,
             ),
@@ -573,6 +608,14 @@ class _SpecialOrTable extends StatelessWidget {
         onCreate: () => ModuleScreen._openForm(context, module),
         onEdit: (record) =>
             ModuleScreen._openForm(context, module, record: record),
+        onRowTap: module.key == 'parents'
+            ? (record) {
+                final id = record.id ?? int.tryParse('${record.raw['id']}');
+                if (id != null && id > 0) {
+                  context.push('/parents/$id');
+                }
+              }
+            : null,
         onDelete: (record) async {
           try {
             await viewModel.delete(record);
@@ -722,6 +765,29 @@ class _SettingsContentState extends State<SettingsContent> {
               });
             },
             secondary: const _SoftIcon(icon: Icons.language_rounded),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: dashboardSectionsGrid,
+            builder: (context, showGrid, _) => SwitchListTile(
+              title: Text(
+                appIsArabic(context)
+                    ? 'إظهار الأقسام كشبكة في لوحة التحكم'
+                    : 'Show sections grid on dashboard',
+              ),
+              subtitle: Text(
+                appIsArabic(context)
+                    ? 'وصول أسرع إلى جميع الوحدات من الصفحة الرئيسية'
+                    : 'Quick access to all modules from the home screen',
+              ),
+              value: showGrid,
+              onChanged: (value) async {
+                await setDashboardSectionsGrid(value);
+              },
+              secondary: const _SoftIcon(icon: Icons.grid_view_rounded),
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -923,6 +989,8 @@ class AdminDashboardContent extends StatelessWidget {
           },
         ),
         const SizedBox(height: 16),
+        const _SectionsGridSection(),
+        const SizedBox(height: 16),
         Card(
           clipBehavior: Clip.antiAlias,
           child: Padding(
@@ -986,6 +1054,104 @@ class AdminDashboardContent extends StatelessWidget {
         stats['classes_count'] ??
         stats['total_classes'];
     return stats;
+  }
+}
+
+/// Drawer content rendered as grids of module tiles on the admin dashboard.
+/// Visible only when the "sections grid" settings option is enabled.
+class _SectionsGridSection extends StatefulWidget {
+  const _SectionsGridSection();
+
+  @override
+  State<_SectionsGridSection> createState() => _SectionsGridSectionState();
+}
+
+class _SectionsGridSectionState extends State<_SectionsGridSection> {
+  @override
+  void initState() {
+    super.initState();
+    loadDashboardSectionsGridPref();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: dashboardSectionsGrid,
+      builder: (context, show, _) {
+        if (!show) return const SizedBox.shrink();
+        final role = context.watch<SessionController>().currentRole;
+        final currentPath = GoRouterState.of(context).uri.path;
+        // Flat grid: every module together, de-duplicated by route, without
+        // the drawer's category groupings.
+        final items = <NavItem>[];
+        final seenRoutes = <String>{};
+        for (final group in navGroupsForRole(role)) {
+          for (final item in group.items) {
+            if (item.route == currentPath) continue;
+            if (!seenRoutes.add(item.route)) continue;
+            items.add(item);
+          }
+        }
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final crossAxisCount = constraints.maxWidth < 480
+                ? 3
+                : constraints.maxWidth < 800
+                ? 4
+                : 6;
+            return GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: crossAxisCount,
+              childAspectRatio: 1.05,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              children: [
+                for (final item in items) _ModuleGridTile(item: item),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ModuleGridTile extends StatelessWidget {
+  const _ModuleGridTile({required this.item});
+
+  final NavItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      child: InkWell(
+        onTap: () => GoRouter.of(context).go(item.route),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              LivingNavIcon(icon: item.icon, size: 44),
+              const SizedBox(height: 8),
+              Text(
+                localizedNavLabel(context, item),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.ink,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -2201,6 +2367,7 @@ class _PromotionBulkFormState extends State<_PromotionBulkForm> {
         DynamicModuleForm(
           module: widget.module,
           fieldOptions: widget.fieldOptions,
+          repository: SchoolRepository(context.read<SessionController>().api),
           submitLabel: widget.action,
           onSubmit: (values) => _executePromotion(context, values),
         ),
@@ -2262,6 +2429,15 @@ class _PromotionBulkFormState extends State<_PromotionBulkForm> {
         () => _error = appIsArabic(context)
             ? 'يرجى تعبئة جميع الحقول المطلوبة.'
             : 'Please fill all required fields.',
+      );
+      return;
+    }
+
+    if (academicYear == academicYearNew) {
+      setState(
+        () => _error = appIsArabic(context)
+            ? 'السنة الدراسية الحالية والجديدة يجب أن تكونا مختلفتين.'
+            : 'Current and new academic years must be different.',
       );
       return;
     }

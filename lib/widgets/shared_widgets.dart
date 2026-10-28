@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../app/app_strings.dart';
@@ -9,10 +10,26 @@ String displayValue(dynamic value, {String languageCode = 'en'}) {
   if (value == null) {
     return '';
   }
+  if (value is String) {
+    final trimmed = value.trim();
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        final decoded = jsonDecode(trimmed);
+        return displayValue(decoded, languageCode: languageCode);
+      } catch (_) {}
+    }
+    return value;
+  }
   if (value is Map) {
-    final localized = value[languageCode] ?? value['en'] ?? value['ar'];
-    if (localized != null) {
+    final localized = languageCode == 'ar'
+        ? (value['ar'] ?? value['en'] ?? value.values.firstOrNull)
+        : (value['en'] ?? value['ar'] ?? value.values.firstOrNull);
+    if (localized != null && localized is! Map && localized is! List) {
       return '$localized';
+    }
+    if (localized is Map || localized is List) {
+      return displayValue(localized, languageCode: languageCode);
     }
     if (value['Name'] != null) {
       return displayValue(value['Name'], languageCode: languageCode);

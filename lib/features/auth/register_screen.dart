@@ -55,6 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 labelText: appIsArabic(context) ? 'الدور' : 'Role',
               ),
               items: UserRole.values
+                  .where((role) => role != UserRole.admin)
                   .map(
                     (role) =>
                         DropdownMenuItem(value: role, child: Text(role.name)),

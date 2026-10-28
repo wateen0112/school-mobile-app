@@ -805,39 +805,41 @@ class _TeacherStudentsEvaluationContentState
 
     final languageCode = Localizations.localeOf(context).languageCode;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '${_Strings.students(context)} (${_students.length})',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-              ),
-            ),
-            if (_selectedStudentIds.isNotEmpty)
-              Text(
-                _Strings.selectedCount(context, _selectedStudentIds.length),
-                style: const TextStyle(
-                  color: AppTheme.primary,
-                  fontWeight: FontWeight.w800,
+    return Expanded(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${_Strings.students(context)} (${_students.length})',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                 ),
               ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        ..._students.map((student) => _buildStudentTile(context, student, languageCode)),
-        const SizedBox(height: 12),
-        if (_selectedStudentIds.isNotEmpty)
-          FilledButton.icon(
-            onPressed: _openEvaluateForm,
-            icon: const Icon(Icons.star_rounded),
-            label: Text(_Strings.evaluateSelected(context)),
+              if (_selectedStudentIds.isNotEmpty)
+                Text(
+                  _Strings.selectedCount(context, _selectedStudentIds.length),
+                  style: const TextStyle(
+                    color: AppTheme.primary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
           ),
-      ],
+          const SizedBox(height: 10),
+          ..._students.map((student) => _buildStudentTile(context, student, languageCode)),
+          const SizedBox(height: 12),
+          if (_selectedStudentIds.isNotEmpty)
+            FilledButton.icon(
+              onPressed: _openEvaluateForm,
+              icon: const Icon(Icons.star_rounded),
+              label: Text(_Strings.evaluateSelected(context)),
+            ),
+        ],
+      ),
     );
   }
 

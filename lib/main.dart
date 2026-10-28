@@ -12,6 +12,7 @@ import 'core/navigation/notification_navigation.dart';
 import 'core/network/background_notification_service.dart';
 import 'core/router/app_navigator.dart';
 import 'core/router/app_router.dart';
+import 'core/state/dashboard_grid_pref.dart';
 import 'core/state/session_controller.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/splash_screen.dart';
@@ -49,6 +50,7 @@ class _SchoolMobileAppState extends State<SchoolMobileApp> {
     _session = SessionController(widget.prefs);
     _appState = AppState(widget.prefs);
     _router = createRouter(_session, navigatorKey: appNavigatorKey);
+    initDashboardSectionsGridPref(widget.prefs);
     _lastAuthenticated = _session.isAuthenticated;
     _lastRole = _session.currentRole;
     _session.addListener(_onSessionChanged);
